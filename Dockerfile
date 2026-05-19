@@ -42,6 +42,7 @@ RUN apk add --no-cache dumb-init wget \
 COPY --from=backend-prod-deps --chown=expense:expense /app/backend/node_modules ./backend/node_modules
 COPY --from=backend-build --chown=expense:expense /app/backend/dist ./backend/dist
 COPY --from=backend-build --chown=expense:expense /app/backend/prisma ./backend/prisma
+COPY --from=backend-build --chown=expense:expense /app/backend/prisma.config.ts ./backend/prisma.config.ts
 COPY --from=backend-build --chown=expense:expense /app/backend/package.json ./backend/package.json
 COPY --from=frontend-build --chown=expense:expense /app/frontend/dist ./public
 
