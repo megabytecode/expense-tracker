@@ -75,7 +75,7 @@ El puerto se publica solo en loopback:
 Antes de activar un release, el deploy remoto debe ejecutar:
 
 ```bash
-docker compose --env-file /srv/secrets/expense-tracker/app.env -f compose.yaml run --rm app npm --prefix /app/backend run prisma:migrate:deploy
+docker compose --env-file /srv/secrets/expense-tracker/app.env -f compose.yaml run --build --rm app npm --prefix /app/backend run prisma:migrate:deploy
 ```
 
 Esto aplica migraciones con `DATABASE_URL` del archivo secreto del VPS. El
