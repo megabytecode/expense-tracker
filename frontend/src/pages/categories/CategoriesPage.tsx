@@ -118,7 +118,7 @@ export function CategoriesPage() {
           action={<Button onClick={loadCategories}>Reintentar</Button>}
         />
       ) : (
-        <div className="bg-white border border-outline-variant rounded-lg shadow-sm divide-y divide-outline-variant">
+        <div className="bg-[var(--color-surface-container-lowest)] border border-[var(--color-outline-variant)] rounded-lg shadow-sm divide-y divide-[var(--color-outline-variant)]">
           {categories.map(cat => (
             <div key={cat.id} className="p-4 flex justify-between items-center hover:bg-surface-container-lowest">
               <div>

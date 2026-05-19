@@ -420,7 +420,7 @@ export function SavingsGoalsPage() {
               </p>
             </div>
           </div>
-          <Button variant="outline" className="border-[var(--color-error)]/20 bg-white/70" onClick={handleDismissNotice}>
+          <Button variant="outline" className="border-[var(--color-error)]/20 bg-[var(--color-surface-container)]" onClick={handleDismissNotice}>
             Entendido
           </Button>
         </section>

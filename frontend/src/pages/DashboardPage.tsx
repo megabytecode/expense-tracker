@@ -876,7 +876,7 @@ export function DashboardPage() {
                       step="0.01"
                       value={planBaseDraft}
                       onChange={(event) => setPlanBaseDraft(event.target.value)}
-                      className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-white px-3 py-2 text-[var(--color-on-surface)] outline-none"
+                      className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-3 py-2 text-[var(--color-on-surface)] outline-none"
                     />
                   </label>
                   <div className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] px-3 py-3">
@@ -934,7 +934,7 @@ export function DashboardPage() {
                                   [item.categoryId]: event.target.value,
                                 }))
                               }
-                              className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-white px-3 py-2 text-[var(--color-on-surface)] outline-none"
+                              className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-3 py-2 text-[var(--color-on-surface)] outline-none"
                             />
                           </label>
                           <div>
@@ -1149,7 +1149,7 @@ function LocalFilterControls({
             type="date"
             value={range.startDate}
             onChange={(event) => onRangeChange({ ...range, startDate: event.target.value })}
-            className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-white px-3 py-2 text-[var(--color-on-surface)] outline-none"
+            className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-3 py-2 text-[var(--color-on-surface)] outline-none"
           />
         </label>
         <label className="text-sm">
@@ -1158,7 +1158,7 @@ function LocalFilterControls({
             type="date"
             value={range.endDate}
             onChange={(event) => onRangeChange({ ...range, endDate: event.target.value })}
-            className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-white px-3 py-2 text-[var(--color-on-surface)] outline-none"
+            className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-3 py-2 text-[var(--color-on-surface)] outline-none"
           />
         </label>
       </div>

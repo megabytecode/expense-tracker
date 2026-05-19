@@ -123,7 +123,7 @@ export function AccountsPage() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {accounts.map(acc => (
-            <div key={acc.id} className="p-4 bg-white border border-outline-variant rounded-lg shadow-sm">
+            <div key={acc.id} className="p-4 bg-[var(--color-surface-container-lowest)] border border-[var(--color-outline-variant)] rounded-lg shadow-sm">
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <h3 className="font-semibold text-lg text-on-surface">{acc.name}</h3>

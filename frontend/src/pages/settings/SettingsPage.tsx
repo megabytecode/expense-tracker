@@ -50,7 +50,7 @@ export function SettingsPage() {
         description="Ajustes de cuenta y preferencias."
       />
 
-      <div className="bg-white border border-outline-variant rounded-lg p-6 shadow-sm">
+      <div className="bg-[var(--color-surface-container-lowest)] border border-[var(--color-outline-variant)] rounded-lg p-6 shadow-sm">
         <h3 className="text-lg font-semibold mb-4">Preferencias Globales</h3>
         
         {message.text && (
