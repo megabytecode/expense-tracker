@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Modal } from "./Modal";
 import { Input } from "./Input";
 import { Select } from "./Select";
@@ -45,6 +45,12 @@ interface Props {
   initialTransaction?: TransactionRecord | null;
 }
 
+type TransactionModalType = "expense" | "income" | "transfer" | "manual_adjustment";
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Ocurrió un error inesperado.";
+}
+
 export function TransactionModal({
   isOpen,
   onClose,
@@ -52,7 +58,7 @@ export function TransactionModal({
   initialType = "expense",
   initialTransaction = null,
 }: Props) {
-  const [type, setType] = useState(initialType);
+  const [type, setType] = useState<TransactionModalType>(initialType);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
@@ -70,14 +76,7 @@ export function TransactionModal({
   // Transfer specific state
   const [destinationAccountId, setDestinationAccountId] = useState("");
 
-  useEffect(() => {
-    if (isOpen) {
-      loadData();
-      hydrateForm();
-    }
-  }, [isOpen, initialType, initialTransaction]);
-
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setCategoryId("");
     setDebtId("");
     setDescription("");
@@ -86,9 +85,9 @@ export function TransactionModal({
     setDestinationAccountId("");
     setOccurredAt(new Date().toISOString().slice(0, 10));
     setError("");
-  };
+  }, []);
 
-  const hydrateForm = () => {
+  const hydrateForm = useCallback(() => {
     setType(initialTransaction?.type || initialType);
     resetForm();
 
@@ -100,9 +99,9 @@ export function TransactionModal({
       setAccountId(initialTransaction.allocations?.[0]?.accountId || "");
       setOccurredAt(initialTransaction.occurredAt.slice(0, 10));
     }
-  };
+  }, [initialTransaction, initialType, resetForm]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [accData, catData, debtData] = await Promise.all([
         fetchApi("/accounts"),
@@ -116,7 +115,17 @@ export function TransactionModal({
     } catch (e) {
       console.error(e);
     }
-  };
+  }, [initialTransaction]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    hydrateForm();
+    void loadData();
+  }, [hydrateForm, isOpen, loadData]);
 
   const debtCategory = categories.find((category) => category.systemKey === "DEBT");
   const isDebtExpense = type === "expense" && categoryId === debtCategory?.id;
@@ -171,8 +180,8 @@ export function TransactionModal({
       }
       onSuccess();
       onClose();
-    } catch (e: any) {
-      setError(e.message);
+    } catch (error) {
+      setError(getErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
@@ -190,18 +199,18 @@ export function TransactionModal({
         {error && <div className="p-3 bg-error-container text-on-error-container rounded text-sm">{error}</div>}
 
         <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-          {["expense", "income", "transfer", "manual_adjustment"].map(t => (
+          {(["expense", "income", "transfer", "manual_adjustment"] as const).map((modalType) => (
             <button
-              key={t}
+              key={modalType}
               type="button"
-              onClick={() => { setType(t as any); resetForm(); }}
+              onClick={() => { setType(modalType); resetForm(); }}
               className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                type === t 
+                type === modalType 
                   ? "bg-primary text-on-primary" 
                   : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
               }`}
             >
-              {t === "expense" ? "Gasto" : t === "income" ? "Ingreso" : t === "transfer" ? "Transferencia" : "Ajuste Manual"}
+              {modalType === "expense" ? "Gasto" : modalType === "income" ? "Ingreso" : modalType === "transfer" ? "Transferencia" : "Ajuste Manual"}
             </button>
           ))}
         </div>

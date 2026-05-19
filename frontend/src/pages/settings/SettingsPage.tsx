@@ -1,21 +1,23 @@
-import { useState, useEffect } from "react";
+import { useMemo, useState } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { fetchApi } from "../../api/client";
 import { Input } from "../../components/ui/Input";
 import { useAuth } from "../../context/AuthContext";
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Ocurrió un error inesperado.";
+}
+
 export function SettingsPage() {
   const { user, setUser } = useAuth();
-  const [currencyCode, setCurrencyCode] = useState("");
+  const [currencyDraft, setCurrencyDraft] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
-
-  useEffect(() => {
-    if (user) {
-      setCurrencyCode(user.currencyCode || "COP");
-    }
-  }, [user]);
+  const currencyCode = useMemo(
+    () => currencyDraft ?? user?.currencyCode ?? "COP",
+    [currencyDraft, user?.currencyCode],
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,8 +36,8 @@ export function SettingsPage() {
       if (user) {
         setUser({ ...user, currencyCode: updated.currencyCode });
       }
-    } catch (e: any) {
-      setMessage({ text: e.message, type: "error" });
+    } catch (error) {
+      setMessage({ text: getErrorMessage(error), type: "error" });
     } finally {
       setIsSaving(false);
     }
@@ -62,7 +64,7 @@ export function SettingsPage() {
             <Input 
               label="Moneda Global" 
               value={currencyCode} 
-              onChange={e => setCurrencyCode(e.target.value.toUpperCase())} 
+              onChange={e => setCurrencyDraft(e.target.value.toUpperCase())} 
               maxLength={3}
               placeholder="Ej: COP, USD, EUR"
               required 

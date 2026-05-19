@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Calendar,
@@ -135,7 +135,7 @@ export function SavingsGoalsPage() {
   const [goalForm, setGoalForm] = useState(EMPTY_GOAL_FORM);
   const [allocationDraft, setAllocationDraft] = useState<Record<string, string>>({});
 
-  const loadOverview = async () => {
+  const loadOverview = useCallback(async () => {
     try {
       setIsLoading(true);
       setPageError("");
@@ -146,11 +146,12 @@ export function SavingsGoalsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadOverview();
-  }, []);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadOverview();
+  }, [loadOverview]);
 
   const activeGoals = useMemo(() => {
     return overview?.goals.filter((goal) => goal.baseStatus === "active") ?? [];

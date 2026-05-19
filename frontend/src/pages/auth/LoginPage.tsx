@@ -4,6 +4,10 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Mail } from 'lucide-react';
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Failed to request OTP';
+}
+
 export function LoginPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
@@ -28,8 +32,8 @@ export function LoginPage() {
       }
 
       navigate(`/verify-otp?email=${encodeURIComponent(email)}`);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (error) {
+      setError(getErrorMessage(error));
     } finally {
       setLoading(false);
     }

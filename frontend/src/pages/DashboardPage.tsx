@@ -322,6 +322,7 @@ export function DashboardPage() {
   }, [expenseFilter.active, incomeFilter.active, transferFilter.active]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadOverview(globalRange);
   }, [globalRange, loadOverview]);
 
@@ -383,6 +384,7 @@ export function DashboardPage() {
     }
 
     const activeRange = selectedCategory.type === "expense" ? expenseRange : incomeRange;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadCategoryMovements(selectedCategory, activeRange, movementPage);
   }, [
     selectedCategory,

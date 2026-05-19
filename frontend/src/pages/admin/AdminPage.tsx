@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AlertTriangle, HardDrive, Shield, SlidersHorizontal, Trash2, UserRoundX, Users } from "lucide-react";
 import { fetchApi } from "../../api/client";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -79,6 +79,10 @@ function getStatusBadgeClasses(isActive: boolean) {
     : "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]";
 }
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "Ocurrió un error inesperado.";
+}
+
 export function AdminPage() {
   const [segment, setSegment] = useState<AdminSegment>("all");
   const [search, setSearch] = useState("");
@@ -95,9 +99,33 @@ export function AdminPage() {
     maxAttachmentsPerMovement: "5",
   });
 
+  const loadUsers = useCallback(async (nextSearch = search) => {
+    try {
+      setIsLoading(true);
+      setError("");
+
+      const params = new URLSearchParams({
+        segment,
+      });
+
+      const trimmedSearch = nextSearch.trim();
+      if (trimmedSearch) {
+        params.set("search", trimmedSearch);
+      }
+
+      const response = await fetchApi(`/admin/users?${params.toString()}`);
+      setData(response);
+    } catch (error) {
+      setError(getErrorMessage(error));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [search, segment]);
+
   useEffect(() => {
-    loadUsers();
-  }, [segment]);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadUsers();
+  }, [loadUsers]);
 
   const summaryCards = useMemo(() => {
     if (!data) {
@@ -130,29 +158,6 @@ export function AdminPage() {
     ];
   }, [data]);
 
-  async function loadUsers(nextSearch = search) {
-    try {
-      setIsLoading(true);
-      setError("");
-
-      const params = new URLSearchParams({
-        segment,
-      });
-
-      const trimmedSearch = nextSearch.trim();
-      if (trimmedSearch) {
-        params.set("search", trimmedSearch);
-      }
-
-      const response = await fetchApi(`/admin/users?${params.toString()}`);
-      setData(response);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
   function openLimitModal(user: AdminUser) {
     setLimitForm({
       userId: user.id,
@@ -176,8 +181,8 @@ export function AdminPage() {
       });
       setMessage({ type: "success", text: `Usuario ${user.email} desactivado correctamente.` });
       await loadUsers();
-    } catch (e: any) {
-      setMessage({ type: "error", text: e.message });
+    } catch (error) {
+      setMessage({ type: "error", text: getErrorMessage(error) });
     }
   }
 
@@ -193,8 +198,8 @@ export function AdminPage() {
       });
       setMessage({ type: "success", text: `Usuario ${user.email} eliminado con política segura.` });
       await loadUsers();
-    } catch (e: any) {
-      setMessage({ type: "error", text: e.message });
+    } catch (error) {
+      setMessage({ type: "error", text: getErrorMessage(error) });
     }
   }
 
@@ -229,8 +234,8 @@ export function AdminPage() {
       setMessage({ type: "success", text: `Límites actualizados para ${limitForm.email}.` });
       setIsLimitModalOpen(false);
       await loadUsers();
-    } catch (e: any) {
-      setMessage({ type: "error", text: e.message });
+    } catch (error) {
+      setMessage({ type: "error", text: getErrorMessage(error) });
     } finally {
       setIsSaving(false);
     }

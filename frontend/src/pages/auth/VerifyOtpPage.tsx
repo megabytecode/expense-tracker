@@ -5,6 +5,10 @@ import { Input } from '../../components/ui/Input';
 import { useAuth } from '../../context/AuthContext';
 import { ShieldCheck } from 'lucide-react';
 
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'Invalid OTP';
+}
+
 export function VerifyOtpPage() {
   const [searchParams] = useSearchParams();
   const email = searchParams.get('email') || '';
@@ -34,8 +38,8 @@ export function VerifyOtpPage() {
       const data = await res.json();
       setUser(data.user);
       navigate('/');
-    } catch (err: any) {
-      setError(err.message);
+    } catch (error) {
+      setError(getErrorMessage(error));
     } finally {
       setLoading(false);
     }
