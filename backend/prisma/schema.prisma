@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id                        String    @id @default(uuid())
+  email                     String    @unique
+  name                      String    @default("")
+  role                      String    @default("user") // admin | user
+  currencyCode              String    @default("COP")
+  monthlyExpenseBase        Decimal   @default(0.0) @db.Decimal(12, 2)
+  storageLimitBytes         BigInt    @default(1073741824) // 1 GB
+  storageUsedBytes          BigInt    @default(0)
+  maxAttachmentsPerMovement Int       @default(5)
+  savingsGoalRebalanceNotifiedAt DateTime?
+  savingsGoalRebalanceSeenAt     DateTime?
+  isActive                  Boolean   @default(true)
+  deletedAt                 DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  accounts          Account[]
+  categories        Category[]
+  transactions      Transaction[]
+  transfers         Transfer[]
+  debts             Debt[]
+  savingsGoals      SavingsGoal[]
+  budgetAllocations CategoryBudgetAllocation[]
+  sessions          Session[]
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+model AuthOtp {
+  id             String    @id @default(uuid())
+  email          String
+  codeHash       String
+  expiresAt      DateTime
+  consumedAt     DateTime?
+  attemptsCount  Int       @default(0)
+  cooldownUntil  DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@map("auth_otps")
+  @@index([email, consumedAt, expiresAt, createdAt])
+}
+
+model Session {
+  id          String    @id @default(uuid())
+  userId      String
+  tokenHash   String    @unique
+  createdAt   DateTime  @default(now())
+  lastUsedAt  DateTime  @default(now())
+  revokedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("sessions")
+  @@index([userId, revokedAt])
+}
+
+model Account {
+  id             String    @id @default(uuid())
+  userId         String
+  name           String
+  type           String    // savings | cash
+  initialBalance Decimal   @default(0.0) @db.Decimal(12, 2)
+  isActive       Boolean   @default(true)
+  deletedAt      DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user                  User                   @relation(fields: [userId], references: [id])
+  transactionAllocations TransactionAllocation[]
+  transfersSent         Transfer[]             @relation("TransferSource")
+  transfersReceived     Transfer[]             @relation("TransferDest")
+
+  @@map("accounts")
+  @@index([userId, isActive, deletedAt])
+  @@index([userId, type, isActive, deletedAt])
+}
+
+model Category {
+  id          String    @id @default(uuid())
+  userId      String
+  name        String
+  type        String    // income | expense
+  isHidden    Boolean   @default(false)
+  isProtected Boolean   @default(false)
+  systemKey   String?
+  isActive    Boolean   @default(true)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user              User                       @relation(fields: [userId], references: [id])
+  transactions      Transaction[]
+  budgetAllocations CategoryBudgetAllocation[]
+
+  @@map("categories")
+  @@index([userId, type, isActive, deletedAt])
+  @@index([userId, systemKey])
+}
+
+model Transaction {
+  id          String    @id @default(uuid())
+  userId      String
+  type        String    // income | expense | manual_adjustment
+  categoryId  String
+  description String
+  notes       String?
+  totalAmount Decimal   @db.Decimal(12, 2)
+  debtId      String?
+  occurredAt  DateTime
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user         User                    @relation(fields: [userId], references: [id])
+  category     Category                @relation(fields: [categoryId], references: [id])
+  allocations  TransactionAllocation[]
+  debtPayments DebtPayment[]
+
+  @@map("transactions")
+  @@index([userId, occurredAt])
+  @@index([userId, type, occurredAt])
+  @@index([userId, categoryId, occurredAt])
+  @@index([userId, debtId])
+}
+
+model TransactionAllocation {
+  id            String   @id @default(uuid())
+  transactionId String
+  accountId     String
+  amount        Decimal  @db.Decimal(12, 2)
+  direction     String   // in | out
+  createdAt     DateTime @default(now())
+
+  transaction Transaction @relation(fields: [transactionId], references: [id])
+  account     Account     @relation(fields: [accountId], references: [id])
+
+  @@map("transaction_allocations")
+  @@index([transactionId])
+  @@index([accountId])
+}
+
+model Transfer {
+  id                   String    @id @default(uuid())
+  userId               String
+  sourceAccountId      String
+  destinationAccountId String
+  reason               String
+  amount               Decimal   @db.Decimal(12, 2)
+  notes                String?
+  occurredAt           DateTime
+  isDeleted            Boolean   @default(false)
+  deletedAt            DateTime?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  user               User    @relation(fields: [userId], references: [id])
+  sourceAccount      Account @relation("TransferSource", fields: [sourceAccountId], references: [id])
+  destinationAccount Account @relation("TransferDest", fields: [destinationAccountId], references: [id])
+
+  @@map("transfers")
+  @@index([userId, occurredAt])
+  @@index([sourceAccountId, occurredAt])
+  @@index([destinationAccountId, occurredAt])
+}
+
+model SavingsGoal {
+  id           String    @id @default(uuid())
+  userId       String
+  name         String
+  description  String?
+  targetAmount Decimal   @db.Decimal(12, 2)
+  status       String    @default("active") // active | inactive
+  targetDate   DateTime?
+  isActive     Boolean   @default(true)
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user        User                    @relation(fields: [userId], references: [id])
+  allocations SavingsGoalAllocation[]
+
+  @@map("savings_goals")
+  @@index([userId, status])
+}
+
+model SavingsGoalAllocation {
+  id            String   @id @default(uuid())
+  savingsGoalId String
+  amount        Decimal  @db.Decimal(12, 2)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  savingsGoal SavingsGoal @relation(fields: [savingsGoalId], references: [id])
+
+  @@map("savings_goal_allocations")
+  @@unique([savingsGoalId])
+}
+
+model Debt {
+  id          String    @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+  totalAmount Decimal   @db.Decimal(12, 2)
+  isActive    Boolean   @default(true)
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user         User              @relation(fields: [userId], references: [id])
+  paymentDays  DebtPaymentDay[]
+  debtPayments DebtPayment[]
+
+  @@map("debts")
+  @@index([userId, isActive])
+}
+
+model DebtPaymentDay {
+  id         String   @id @default(uuid())
+  debtId     String
+  dayOfMonth Int
+  createdAt  DateTime @default(now())
+
+  debt Debt @relation(fields: [debtId], references: [id])
+
+  @@map("debt_payment_days")
+  @@unique([debtId, dayOfMonth])
+}
+
+model DebtPayment {
+  id            String   @id @default(uuid())
+  debtId        String
+  transactionId String
+  amount        Decimal  @db.Decimal(12, 2)
+  createdAt     DateTime @default(now())
+
+  debt        Debt        @relation(fields: [debtId], references: [id])
+  transaction Transaction @relation(fields: [transactionId], references: [id])
+
+  @@map("debt_payments")
+  @@unique([transactionId])
+  @@index([debtId])
+}
+
+model CategoryBudgetAllocation {
+  id         String   @id @default(uuid())
+  userId     String
+  categoryId String
+  percentage Decimal  @db.Decimal(5, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+
+  @@map("category_budget_allocations")
+  @@unique([userId, categoryId])
+  @@index([categoryId])
+}
+
+model AuditLog {
+  id            String   @id @default(uuid())
+  userId        String
+  actorUserId   String
+  entityType    String
+  entityId      String
+  action        String   // create | update | delete | deactivate
+  previousValues Json?
+  newValues      Json?
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@map("audit_logs")
+  @@index([userId, createdAt])
+  @@index([entityType, entityId])
+}

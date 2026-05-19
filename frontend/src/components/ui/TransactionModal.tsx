@@ -1,0 +1,332 @@
+import { useState, useEffect } from "react";
+import { Modal } from "./Modal";
+import { Input } from "./Input";
+import { Select } from "./Select";
+import { Button } from "./Button";
+import { fetchApi } from "../../api/client";
+
+interface Account {
+  id: string;
+  name: string;
+  expectedBalance: number;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  type: string;
+  systemKey?: string | null;
+}
+
+interface Debt {
+  id: string;
+  name: string;
+  remainingAmount: number;
+  isActive: boolean;
+  status: "active" | "paid" | "inactive";
+}
+
+interface TransactionRecord {
+  id: string;
+  type: "income" | "expense" | "manual_adjustment";
+  categoryId: string;
+  description: string;
+  totalAmount: number;
+  occurredAt: string;
+  allocations: { accountId: string }[];
+  debtPayments?: { debt?: { id: string } | null }[];
+}
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  initialType?: "income" | "expense" | "transfer" | "manual_adjustment";
+  initialTransaction?: TransactionRecord | null;
+}
+
+export function TransactionModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  initialType = "expense",
+  initialTransaction = null,
+}: Props) {
+  const [type, setType] = useState(initialType);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [debts, setDebts] = useState<Debt[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  // Transaction form state
+  const [categoryId, setCategoryId] = useState("");
+  const [debtId, setDebtId] = useState("");
+  const [description, setDescription] = useState("");
+  const [amount, setAmount] = useState("");
+  const [accountId, setAccountId] = useState("");
+  const [occurredAt, setOccurredAt] = useState(new Date().toISOString().slice(0, 10));
+
+  // Transfer specific state
+  const [destinationAccountId, setDestinationAccountId] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      loadData();
+      hydrateForm();
+    }
+  }, [isOpen, initialType, initialTransaction]);
+
+  const resetForm = () => {
+    setCategoryId("");
+    setDebtId("");
+    setDescription("");
+    setAmount("");
+    setAccountId("");
+    setDestinationAccountId("");
+    setOccurredAt(new Date().toISOString().slice(0, 10));
+    setError("");
+  };
+
+  const hydrateForm = () => {
+    setType(initialTransaction?.type || initialType);
+    resetForm();
+
+    if (initialTransaction) {
+      setCategoryId(initialTransaction.categoryId || "");
+      setDebtId(initialTransaction.debtPayments?.[0]?.debt?.id || "");
+      setDescription(initialTransaction.description || "");
+      setAmount(String(initialTransaction.totalAmount));
+      setAccountId(initialTransaction.allocations?.[0]?.accountId || "");
+      setOccurredAt(initialTransaction.occurredAt.slice(0, 10));
+    }
+  };
+
+  const loadData = async () => {
+    try {
+      const [accData, catData, debtData] = await Promise.all([
+        fetchApi("/accounts"),
+        fetchApi("/categories"),
+        fetchApi("/debts"),
+      ]);
+      setAccounts(accData);
+      setCategories(catData);
+      setDebts(debtData);
+      if (!initialTransaction && accData.length > 0) setAccountId(accData[0].id);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const debtCategory = categories.find((category) => category.systemKey === "DEBT");
+  const isDebtExpense = type === "expense" && categoryId === debtCategory?.id;
+  const selectedDebt = debts.find((debt) => debt.id === debtId);
+
+  const availableDebts = debts.filter((debt) => {
+    if (debt.id === debtId) return true;
+    return debt.isActive && debt.remainingAmount > 0;
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    try {
+      if (type === "transfer") {
+        await fetchApi("/transfers", {
+          method: "POST",
+          body: JSON.stringify({
+            sourceAccountId: accountId,
+            destinationAccountId,
+            reason: description,
+            amount: Number(amount),
+            occurredAt: new Date(occurredAt).toISOString()
+          })
+        });
+      } else {
+        const endpoint = initialTransaction ? `/transactions/${initialTransaction.id}` : "/transactions";
+
+        await fetchApi(endpoint, {
+          method: initialTransaction ? "PATCH" : "POST",
+          body: JSON.stringify({
+            type,
+            categoryId: type === "manual_adjustment" ? undefined : categoryId,
+            description,
+            totalAmount: Number(amount),
+            debtId: isDebtExpense ? debtId : undefined,
+            occurredAt: new Date(occurredAt).toISOString(),
+            allocations: [{
+              accountId,
+              amount: Number(amount),
+              // direction is inferred by backend, except for manual adjustments where it needs to be explicit? 
+              // Wait, if it's a manual adjustment we just send 'in' if amount > 0, actually amount is absolute. 
+              // The backend doesn't know direction for manual adjustments if not provided.
+              // Let's add a toggle for manual adjustment or use signed amount.
+              // In our backend: `let direction = alloc.direction; if (!direction) direction = data.type === 'income' ? 'in' : 'out';`
+              direction: type === 'manual_adjustment' ? (Number(amount) >= 0 ? 'in' : 'out') : undefined
+            }]
+          })
+        });
+      }
+      onSuccess();
+      onClose();
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const filteredCategories = categories.filter(c => type === 'expense' ? c.type === 'expense' : c.type === 'income');
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={initialTransaction ? "Editar movimiento" : "Nuevo movimiento"}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {error && <div className="p-3 bg-error-container text-on-error-container rounded text-sm">{error}</div>}
+
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+          {["expense", "income", "transfer", "manual_adjustment"].map(t => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => { setType(t as any); resetForm(); }}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                type === t 
+                  ? "bg-primary text-on-primary" 
+                  : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
+              }`}
+            >
+              {t === "expense" ? "Gasto" : t === "income" ? "Ingreso" : t === "transfer" ? "Transferencia" : "Ajuste Manual"}
+            </button>
+          ))}
+        </div>
+
+        <Input 
+          label={type === "transfer" ? "Motivo" : "Descripción"} 
+          value={description} 
+          onChange={e => setDescription(e.target.value)} 
+          required 
+        />
+
+        <Input 
+          label="Monto" 
+          type="number" 
+          step="0.01"
+          value={amount} 
+          onChange={e => setAmount(e.target.value)} 
+          required 
+        />
+
+        <Input 
+          label="Fecha" 
+          type="date"
+          value={occurredAt} 
+          onChange={e => setOccurredAt(e.target.value)} 
+          required 
+        />
+
+        {type !== "transfer" && (
+          <Select 
+            label="Cuenta" 
+            value={accountId} 
+            onChange={e => setAccountId(e.target.value)}
+            required
+          >
+            <option value="">Seleccione una cuenta</option>
+            {accounts.map(acc => (
+              <option key={acc.id} value={acc.id}>{acc.name} (${acc.expectedBalance})</option>
+            ))}
+          </Select>
+        )}
+
+        {type === "transfer" && (
+          <div className="grid grid-cols-2 gap-4">
+            <Select 
+              label="Cuenta Origen" 
+              value={accountId} 
+              onChange={e => setAccountId(e.target.value)}
+              required
+            >
+              <option value="">Seleccione origen</option>
+              {accounts.map(acc => (
+                <option key={acc.id} value={acc.id}>{acc.name} (${acc.expectedBalance})</option>
+              ))}
+            </Select>
+            <Select 
+              label="Cuenta Destino" 
+              value={destinationAccountId} 
+              onChange={e => setDestinationAccountId(e.target.value)}
+              required
+            >
+              <option value="">Seleccione destino</option>
+              {accounts.map(acc => (
+                <option key={acc.id} value={acc.id}>{acc.name} (${acc.expectedBalance})</option>
+              ))}
+            </Select>
+          </div>
+        )}
+
+        {type !== "transfer" && type !== "manual_adjustment" && (
+          <>
+            <Select 
+              label="Categoría" 
+              value={categoryId} 
+              onChange={e => {
+                setCategoryId(e.target.value);
+                setDebtId("");
+              }}
+              required
+            >
+              <option value="">Seleccione una categoría</option>
+              {filteredCategories.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </Select>
+
+            {isDebtExpense && (
+              <div className="space-y-2 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
+                <Select
+                  label="Deuda asociada"
+                  value={debtId}
+                  onChange={(event) => setDebtId(event.target.value)}
+                  required
+                >
+                  <option value="">Seleccione una deuda</option>
+                  {availableDebts.map((debt) => (
+                    <option key={debt.id} value={debt.id}>
+                      {debt.name} • Pendiente ${new Intl.NumberFormat().format(debt.remainingAmount)}
+                    </option>
+                  ))}
+                </Select>
+
+                {selectedDebt ? (
+                  <p className="text-xs text-[var(--color-on-surface-variant)]">
+                    Pendiente actual: <span className="font-medium text-[var(--color-error)]">
+                      ${new Intl.NumberFormat().format(selectedDebt.remainingAmount)}
+                    </span>
+                  </p>
+                ) : (
+                  <p className="text-xs text-[var(--color-on-surface-variant)]">
+                    Solo se muestran deudas activas con saldo pendiente. Si editas un pago existente, también verás su deuda vinculada.
+                  </p>
+                )}
+              </div>
+            )}
+          </>
+        )}
+
+        <div className="flex justify-end pt-4">
+          <Button type="button" variant="outline" onClick={onClose} className="mr-2">Cancelar</Button>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? "Guardando..." : "Guardar"}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}

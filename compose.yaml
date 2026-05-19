@@ -1,0 +1,38 @@
+name: expense-tracker
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-/api/v1}
+    env_file:
+      - ${ENV_FILE:-/srv/secrets/expense-tracker/app.env}
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3000
+      DB_HOST: ${DB_HOST:-172.31.255.1}
+      DB_PORT: ${DB_PORT:-5432}
+      DB_NAME: ${DB_NAME:-expense_tracker}
+      DB_USER: ${DB_USER:-expense_tracker}
+      API_DOCS_ENABLED: ${API_DOCS_ENABLED:-false}
+    ports:
+      - "127.0.0.1:${APP_PORT:-3101}:3000"
+    restart: unless-stopped
+    networks:
+      - expense_tracker_internal
+      - platform_db
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  expense_tracker_internal:
+    driver: bridge
+  platform_db:
+    external: true
