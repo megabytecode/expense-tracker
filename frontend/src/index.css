@@ -73,8 +73,31 @@
   input,
   select,
   textarea {
+    min-width: 0;
+    max-width: 100%;
     outline-color: var(--color-secondary);
     outline-offset: 2px;
+  }
+
+  label {
+    min-width: 0;
+  }
+
+  input[type="date"] {
+    width: 100%;
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
+  input[type="date"]::-webkit-date-and-time-value {
+    min-width: 0;
+    text-align: left;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    flex-shrink: 0;
   }
 
   :focus-visible {
