@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { clearApiCache } from '../api/client';
 
 interface User {
   id: string;
@@ -22,6 +23,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const updateUser = React.useCallback((nextUser: User | null) => {
+    setUser((currentUser) => {
+      if (!nextUser || currentUser?.id !== nextUser.id) {
+        clearApiCache();
+      }
+
+      return nextUser;
+    });
+  }, []);
+
   useEffect(() => {
     // Check session on mount
     fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
@@ -31,10 +42,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (res.ok) return res.json();
         throw new Error('Not authenticated');
       })
-      .then((data) => setUser(data.user))
-      .catch(() => setUser(null))
+      .then((data) => updateUser(data.user))
+      .catch(() => updateUser(null))
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [updateUser]);
 
   const logout = async () => {
     try {
@@ -43,12 +54,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         credentials: 'include',
       });
     } finally {
-      setUser(null);
+      updateUser(null);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ user, isLoading, setUser, logout }}>
+    <AuthContext.Provider value={{ user, isLoading, setUser: updateUser, logout }}>
       {children}
     </AuthContext.Provider>
   );
