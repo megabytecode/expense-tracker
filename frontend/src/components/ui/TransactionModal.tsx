@@ -4,6 +4,7 @@ import { Input } from "./Input";
 import { Select } from "./Select";
 import { Button } from "./Button";
 import { fetchApi } from "../../api/client";
+import { Plus, Trash2 } from "lucide-react";
 
 interface Account {
   id: string;
@@ -33,7 +34,7 @@ interface TransactionRecord {
   description: string;
   totalAmount: number;
   occurredAt: string;
-  allocations: { accountId: string }[];
+  allocations: { accountId: string; amount: number }[];
   debtPayments?: { debt?: { id: string } | null }[];
 }
 
@@ -46,6 +47,7 @@ interface Props {
 }
 
 type TransactionModalType = "expense" | "income" | "transfer" | "manual_adjustment";
+type AllocationDraft = { clientId: string; accountId: string; amount: string };
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Ocurrió un error inesperado.";
@@ -59,6 +61,19 @@ function formatAccountBalance(value: number) {
 
 function getAccountOptionLabel(account: Account) {
   return `${account.name} ($${formatAccountBalance(account.expectedBalance)})`;
+}
+
+function createAllocationDraft(accountId = "", amount = ""): AllocationDraft {
+  return {
+    clientId: `${Date.now()}-${Math.random()}`,
+    accountId,
+    amount,
+  };
+}
+
+function parseAmount(value: string) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export function TransactionModal({
@@ -81,6 +96,7 @@ export function TransactionModal({
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [accountId, setAccountId] = useState("");
+  const [allocationRows, setAllocationRows] = useState<AllocationDraft[]>([createAllocationDraft()]);
   const [occurredAt, setOccurredAt] = useState(new Date().toISOString().slice(0, 10));
 
   // Transfer specific state
@@ -92,6 +108,7 @@ export function TransactionModal({
     setDescription("");
     setAmount("");
     setAccountId("");
+    setAllocationRows([createAllocationDraft()]);
     setDestinationAccountId("");
     setOccurredAt(new Date().toISOString().slice(0, 10));
     setError("");
@@ -107,6 +124,13 @@ export function TransactionModal({
       setDescription(initialTransaction.description || "");
       setAmount(String(initialTransaction.totalAmount));
       setAccountId(initialTransaction.allocations?.[0]?.accountId || "");
+      setAllocationRows(
+        initialTransaction.allocations?.length
+          ? initialTransaction.allocations.map((allocation) =>
+              createAllocationDraft(allocation.accountId, String(allocation.amount)),
+            )
+          : [createAllocationDraft()],
+      );
       setOccurredAt(initialTransaction.occurredAt.slice(0, 10));
     }
   }, [initialTransaction, initialType, resetForm]);
@@ -121,7 +145,16 @@ export function TransactionModal({
       setAccounts(accData);
       setCategories(catData);
       setDebts(debtData);
-      if (!initialTransaction && accData.length > 0) setAccountId(accData[0].id);
+      if (!initialTransaction && accData.length > 0) {
+        setAccountId(accData[0].id);
+        setAllocationRows((currentRows) => {
+          if (currentRows.length !== 1 || currentRows[0].accountId) {
+            return currentRows;
+          }
+
+          return [{ ...currentRows[0], accountId: accData[0].id }];
+        });
+      }
     } catch (e) {
       console.error(e);
     }
@@ -140,11 +173,41 @@ export function TransactionModal({
   const debtCategory = categories.find((category) => category.systemKey === "DEBT");
   const isDebtExpense = type === "expense" && categoryId === debtCategory?.id;
   const selectedDebt = debts.find((debt) => debt.id === debtId);
+  const supportsMultipleAllocations = type === "income" || type === "expense";
+  const assignedAmount = allocationRows.reduce((sum, row) => sum + parseAmount(row.amount), 0);
+  const remainingAmount = parseAmount(amount) - assignedAmount;
 
   const availableDebts = debts.filter((debt) => {
     if (debt.id === debtId) return true;
     return debt.isActive && debt.remainingAmount > 0;
   });
+
+  const updateAmount = (nextAmount: string) => {
+    setAmount(nextAmount);
+    if (supportsMultipleAllocations && allocationRows.length === 1) {
+      setAllocationRows((currentRows) => [{ ...currentRows[0], amount: nextAmount }]);
+    }
+  };
+
+  const updateAllocation = (clientId: string, changes: Partial<AllocationDraft>) => {
+    setAllocationRows((currentRows) =>
+      currentRows.map((row) => (row.clientId === clientId ? { ...row, ...changes } : row)),
+    );
+  };
+
+  const addAllocation = () => {
+    setAllocationRows((currentRows) => [...currentRows, createAllocationDraft()]);
+  };
+
+  const removeAllocation = (clientId: string) => {
+    setAllocationRows((currentRows) => {
+      if (currentRows.length === 1) {
+        return currentRows;
+      }
+
+      return currentRows.filter((row) => row.clientId !== clientId);
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -165,6 +228,16 @@ export function TransactionModal({
         });
       } else {
         const endpoint = initialTransaction ? `/transactions/${initialTransaction.id}` : "/transactions";
+        const allocations = supportsMultipleAllocations
+          ? allocationRows.map((row) => ({
+              accountId: row.accountId,
+              amount: Number(row.amount),
+            }))
+          : [{
+              accountId,
+              amount: Number(amount),
+              direction: type === 'manual_adjustment' ? (Number(amount) >= 0 ? 'in' : 'out') : undefined,
+            }];
 
         await fetchApi(endpoint, {
           method: initialTransaction ? "PATCH" : "POST",
@@ -175,16 +248,7 @@ export function TransactionModal({
             totalAmount: Number(amount),
             debtId: isDebtExpense ? debtId : undefined,
             occurredAt: new Date(occurredAt).toISOString(),
-            allocations: [{
-              accountId,
-              amount: Number(amount),
-              // direction is inferred by backend, except for manual adjustments where it needs to be explicit? 
-              // Wait, if it's a manual adjustment we just send 'in' if amount > 0, actually amount is absolute. 
-              // The backend doesn't know direction for manual adjustments if not provided.
-              // Let's add a toggle for manual adjustment or use signed amount.
-              // In our backend: `let direction = alloc.direction; if (!direction) direction = data.type === 'income' ? 'in' : 'out';`
-              direction: type === 'manual_adjustment' ? (Number(amount) >= 0 ? 'in' : 'out') : undefined
-            }]
+            allocations,
           })
         });
       }
@@ -237,7 +301,7 @@ export function TransactionModal({
           type="number" 
           step="0.01"
           value={amount} 
-          onChange={e => setAmount(e.target.value)} 
+          onChange={e => updateAmount(e.target.value)} 
           required 
         />
 
@@ -249,7 +313,70 @@ export function TransactionModal({
           required 
         />
 
-        {type !== "transfer" && (
+        {supportsMultipleAllocations && (
+          <div className="space-y-3 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-[var(--color-on-surface)]">Distribución por cuentas</h3>
+                <p className="text-xs text-[var(--color-on-surface-variant)]">
+                  El total asignado debe coincidir con el monto del movimiento.
+                </p>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={addAllocation}>
+                <Plus className="mr-2 h-4 w-4" /> Cuenta
+              </Button>
+            </div>
+
+            <div className="space-y-3">
+              {allocationRows.map((row, index) => (
+                <div key={row.clientId} className="grid gap-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] p-3 sm:grid-cols-[1fr_140px_auto]">
+                  <Select
+                    label={`Cuenta ${index + 1}`}
+                    value={row.accountId}
+                    onChange={(event) => updateAllocation(row.clientId, { accountId: event.target.value })}
+                    required
+                  >
+                    <option value="">Seleccione una cuenta</option>
+                    {accounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
+                    ))}
+                  </Select>
+
+                  <Input
+                    label="Monto"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    value={row.amount}
+                    onChange={(event) => updateAllocation(row.clientId, { amount: event.target.value })}
+                    required
+                  />
+
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeAllocation(row.clientId)}
+                    disabled={allocationRows.length === 1}
+                    aria-label="Quitar cuenta"
+                    className="self-end text-[var(--color-error)]"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap justify-between gap-2 text-xs text-[var(--color-on-surface-variant)]">
+              <span>Asignado: ${formatAccountBalance(assignedAmount)}</span>
+              <span className={Math.abs(remainingAmount) < 0.01 ? "text-emerald-400" : "text-[var(--color-error)]"}>
+                Diferencia: ${formatAccountBalance(remainingAmount)}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {type !== "transfer" && !supportsMultipleAllocations && (
           <Select 
             label="Cuenta" 
             value={accountId} 
