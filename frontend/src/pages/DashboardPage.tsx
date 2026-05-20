@@ -8,10 +8,6 @@ import {
   RefreshCcw,
   TrendingDown,
   TrendingUp,
-  Plus,
-  Save,
-  X,
-  Trash2,
 } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Button } from "../components/ui/Button";
@@ -490,66 +486,69 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6 pb-32">
-      <div className="flex items-center justify-between">
-        <PageHeader
-          title="Dashboard"
-          description={`Hola, ${user?.name || user?.email}`}
-        />
-        <Button variant="ghost" size="sm" onClick={logout} className="text-sm">
+      <div className="flex justify-end">
+        <Button variant="outline" onClick={logout} className="text-sm">
           Cerrar sesión
         </Button>
       </div>
 
-      <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] p-4">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="flex items-center gap-3">
-            <CalendarRange className="h-5 w-5 text-[var(--color-secondary)]" />
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
-                Período de análisis
-              </p>
-              <p className="mt-1 text-sm font-medium text-[var(--color-on-surface)]">
-                {globalRange.startDate} a {globalRange.endDate}
-              </p>
-            </div>
+      <PageHeader
+        title="Dashboard"
+        description={`Hola, ${user?.name || user?.email}. Este es tu panorama financiero del período.`}
+        action={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" onClick={() => setGlobalRange(getCurrentMonthRange())}>
+              <RefreshCcw className="mr-2 h-4 w-4" />
+              Mes actual
+            </Button>
           </div>
-          <div className="grid gap-2 sm:grid-cols-2 sm:gap-3">
+        }
+      />
+
+      <section className="rounded-[20px] border border-[var(--color-outline-variant)] bg-[linear-gradient(135deg,#131b2e_0%,#1c2a45_52%,#0058be_100%)] p-5 text-white shadow-[0_24px_50px_rgba(15,23,42,0.18)]">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-white/70">
+              Panel principal autenticado
+            </p>
+            <h2 className="mt-2 text-3xl font-semibold tracking-tight">
+              Tu control financiero arranca con un filtro global claro.
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-white/75">
+              El rango global alimenta la vista principal desde el primer día del mes actual y cada informe puede
+              afinarse sin afectar el resto.
+            </p>
+          </div>
+
+          <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/8 p-4 backdrop-blur-sm sm:grid-cols-2">
             <label className="text-sm">
-              <span className="mb-1 block text-xs font-medium text-[var(--color-on-surface-variant)]">Desde</span>
+              <span className="mb-2 block text-white/80">Desde</span>
               <input
                 type="date"
                 value={globalRange.startDate}
                 onChange={(event) => setGlobalRange((current) => ({ ...current, startDate: event.target.value }))}
-                className="w-full rounded-lg border border-[var(--color-outline-variant)] bg-white px-3 py-2 text-sm text-[var(--color-on-surface)] outline-none"
+                className="w-full rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-white outline-none"
               />
             </label>
             <label className="text-sm">
-              <span className="mb-1 block text-xs font-medium text-[var(--color-on-surface-variant)]">Hasta</span>
+              <span className="mb-2 block text-white/80">Hasta</span>
               <input
                 type="date"
                 value={globalRange.endDate}
                 onChange={(event) => setGlobalRange((current) => ({ ...current, endDate: event.target.value }))}
-                className="w-full rounded-lg border border-[var(--color-outline-variant)] bg-white px-3 py-2 text-sm text-[var(--color-on-surface)] outline-none"
+                className="w-full rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-white outline-none"
               />
             </label>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setGlobalRange(getCurrentMonthRange())}
-              className="col-span-2 sm:col-span-1"
-            >
-              <RefreshCcw className="h-4 w-4" />
-            </Button>
           </div>
         </div>
       </section>
 
       {isLoadingOverview ? (
-        <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-4 py-10 text-center text-sm text-[var(--color-on-surface-variant)]">
+        <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-4 py-10 text-center text-sm text-[var(--color-on-surface-variant)]">
           Cargando reportes del dashboard...
         </section>
       ) : overviewError ? (
-        <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-4 py-10">
+        <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-4 py-10">
           <EmptyState
             title="No pudimos cargar el dashboard"
             description={overviewError}
@@ -562,23 +561,23 @@ export function DashboardPage() {
         </section>
       ) : !overview ? null : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {summaryCards.map((card) => (
               <article
                 key={card.label}
-                className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] p-4 shadow-sm transition-all hover:border-[var(--color-secondary)] hover:shadow-md"
+                className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] p-4 shadow-sm"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
+                  <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
                       {card.label}
                     </p>
-                    <p className="mt-2 text-xl font-semibold tracking-tight text-[var(--color-on-surface)]">
+                    <p className="mt-3 text-2xl font-semibold tracking-tight text-[var(--color-on-surface)]">
                       {card.value}
                     </p>
-                    <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">{card.helper}</p>
+                    <p className="mt-2 text-sm text-[var(--color-on-surface-variant)]">{card.helper}</p>
                   </div>
-                  <div className="flex-shrink-0 rounded-lg bg-[var(--color-surface)] p-2.5">
+                  <div className="rounded-2xl bg-[var(--color-surface)] p-3">
                     <card.icon className={`h-5 w-5 ${card.tone}`} />
                   </div>
                 </div>
@@ -586,20 +585,20 @@ export function DashboardPage() {
             ))}
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-            <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-              <div className="border-b border-[var(--color-outline-variant)] px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <TrendingDown className="h-5 w-5 text-[var(--color-error)]" />
+          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+              <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="font-semibold text-[var(--color-on-surface)]">Gastos por categoría</h3>
-                    <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
-                      Desglose de gastos del período
+                    <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Gastos por categoría</h3>
+                    <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                      Las transferencias interbancarias quedan fuera de esta gráfica.
                     </p>
                   </div>
+                  <CalendarRange className="h-5 w-5 text-[var(--color-on-surface-variant)]" />
                 </div>
               </div>
-              <div className="space-y-4 px-5 py-4">
+              <div className="space-y-4 px-4 py-4">
                 <LocalFilterControls
                   range={expenseFilter.range}
                   active={expenseFilter.active}
@@ -629,17 +628,12 @@ export function DashboardPage() {
               </div>
             </section>
 
-            <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-              <div className="border-b border-[var(--color-outline-variant)] px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <PiggyBank className="h-5 w-5 text-emerald-600" />
-                  <div>
-                    <h3 className="font-semibold text-[var(--color-on-surface)]">Saldos por cuenta</h3>
-                    <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
-                      Estado consolidado actualizado
-                    </p>
-                  </div>
-                </div>
+            <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+              <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+                <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Saldos esperados por cuenta</h3>
+                <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                  Calculados hasta la fecha final del rango global.
+                </p>
               </div>
               <div className="divide-y divide-[var(--color-outline-variant)]">
                 {overview.expectedBalances.length === 0 ? (
@@ -650,16 +644,16 @@ export function DashboardPage() {
                   />
                 ) : (
                   overview.expectedBalances.map((account) => (
-                    <div key={account.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                    <div key={account.id} className="flex items-center justify-between gap-3 px-4 py-4">
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="font-medium text-[var(--color-on-surface)]">{account.name}</p>
-                          <span className={`rounded-full px-2 py-1 text-[10px] font-semibold ${getTypePillClasses(account.type)}`}>
+                          <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${getTypePillClasses(account.type)}`}>
                             {account.type === "savings" ? "Ahorro" : "Disponible"}
                           </span>
                         </div>
                       </div>
-                      <p className="text-sm font-semibold text-[var(--color-on-surface)]">
+                      <p className="text-base font-semibold text-[var(--color-on-surface)]">
                         {formatCurrency(account.expectedBalance, overview.currencyCode)}
                       </p>
                     </div>
@@ -669,20 +663,20 @@ export function DashboardPage() {
             </section>
           </div>
 
-          <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-            <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-              <div className="border-b border-[var(--color-outline-variant)] px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-[var(--color-secondary)]" />
+          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+            <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+              <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="font-semibold text-[var(--color-on-surface)]">Ingresos por categoría</h3>
-                    <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
-                      Desglose de ingresos del período
+                    <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Ingresos por categoría</h3>
+                    <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                      Selecciona una categoría para ver su detalle paginado.
                     </p>
                   </div>
+                  <TrendingUp className="h-5 w-5 text-[var(--color-secondary)]" />
                 </div>
               </div>
-              <div className="space-y-4 px-5 py-4">
+              <div className="space-y-4 px-4 py-4">
                 <LocalFilterControls
                   range={incomeFilter.range}
                   active={incomeFilter.active}
@@ -712,17 +706,12 @@ export function DashboardPage() {
               </div>
             </section>
 
-            <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-              <div className="border-b border-[var(--color-outline-variant)] px-5 py-4">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-emerald-600" />
-                  <div>
-                    <h3 className="font-semibold text-[var(--color-on-surface)]">Metas de ahorro</h3>
-                    <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
-                      Progreso de tus objetivos activos
-                    </p>
-                  </div>
-                </div>
+            <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+              <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+                <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Resumen de metas de ahorro</h3>
+                <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                  Organización visible sin mover dinero real entre cuentas.
+                </p>
               </div>
               {overview.savingsGoalsSummary.items.length === 0 ? (
                 <EmptyState
@@ -733,11 +722,11 @@ export function DashboardPage() {
               ) : (
                 <div className="divide-y divide-[var(--color-outline-variant)]">
                   {overview.savingsGoalsSummary.items.slice(0, 4).map((goal) => (
-                    <div key={goal.id} className="px-5 py-4">
+                    <div key={goal.id} className="px-4 py-4">
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <p className="font-medium text-[var(--color-on-surface)]">{goal.name}</p>
-                          <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
+                          <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
                             Meta: {formatCurrency(goal.targetAmount, overview.currencyCode)}
                           </p>
                         </div>
@@ -745,7 +734,7 @@ export function DashboardPage() {
                           {goal.progressPercentage.toFixed(0)}%
                         </p>
                       </div>
-                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--color-surface-container)]">
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--color-surface-container)]">
                         <div
                           className="h-full rounded-full bg-[linear-gradient(90deg,#2170e4_0%,#34d399_100%)]"
                           style={{ width: `${Math.min(goal.progressPercentage, 100)}%` }}
@@ -758,27 +747,22 @@ export function DashboardPage() {
             </section>
           </div>
 
-          <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-            <div className="border-b border-[var(--color-outline-variant)] px-5 py-4">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+            <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+              <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                  <h3 className="font-semibold text-[var(--color-on-surface)]">Movimientos detallados</h3>
-                  <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
-                    Selecciona una categoría para ver todos sus movimientos
+                  <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Movimientos por categoría seleccionada</h3>
+                  <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                    Tabla paginada a 10 registros por defecto con acceso a detalle completo.
                   </p>
                 </div>
                 {selectedCategory ? (
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-[var(--color-surface)] px-3 py-1 text-xs font-medium text-[var(--color-on-surface-variant)]">
-                      {selectedCategory.type === "expense" ? "Gastos" : "Ingresos"}: {selectedCategory.categoryName}
+                  <div className="flex items-center gap-2 text-sm text-[var(--color-on-surface-variant)]">
+                    <span className="rounded-full bg-[var(--color-surface)] px-3 py-1">
+                      {selectedCategory.type === "expense" ? "Gasto" : "Ingreso"}: {selectedCategory.categoryName}
                     </span>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      onClick={() => setSelectedCategory(null)}
-                      title="Limpiar filtro"
-                    >
-                      <X className="h-4 w-4" />
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedCategory(null)}>
+                      Limpiar
                     </Button>
                   </div>
                 ) : null}
@@ -855,25 +839,25 @@ export function DashboardPage() {
             )}
           </section>
 
-          <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-            <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-              <div className="border-b border-[var(--color-outline-variant)] px-5 py-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
+            <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+              <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
                   <div>
-                    <h3 className="font-semibold text-[var(--color-on-surface)]">Planeación mensual</h3>
-                    <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
-                      Forecast vs. gasto real por categoría
+                    <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Planeación mensual por categoría</h3>
+                    <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                      Define la base mensual y distribuye porcentajes organizativos para calcular forecast y compararlo con el gasto real acumulado del período.
                     </p>
                   </div>
-                  <div className="rounded-full bg-[var(--color-surface)] px-3 py-1 text-xs font-medium text-[var(--color-on-surface-variant)]">
+                  <div className="rounded-full bg-[var(--color-surface)] px-3 py-1 text-sm text-[var(--color-on-surface-variant)]">
                     Asignado: {planSummary.totalAssigned.toFixed(2)}%
                   </div>
                 </div>
               </div>
-              <div className="space-y-4 px-5 py-4">
+              <div className="space-y-4 px-4 py-4">
                 {planMessage.text ? (
                   <div
-                    className={`rounded-lg px-4 py-2 text-xs font-medium ${
+                    className={`rounded-xl px-4 py-3 text-sm ${
                       planMessage.type === "success"
                         ? "bg-emerald-100 text-emerald-800"
                         : "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]"
@@ -883,9 +867,9 @@ export function DashboardPage() {
                   </div>
                 ) : null}
 
-                <div className="grid gap-3 sm:grid-cols-[1fr_100px]">
+                <div className="grid gap-3 lg:grid-cols-[0.8fr_0.2fr]">
                   <label className="text-sm">
-                    <span className="mb-1.5 block font-medium text-[var(--color-on-surface)]">Base mensual</span>
+                    <span className="mb-2 block font-medium text-[var(--color-on-surface)]">Base mensual de gasto</span>
                     <input
                       type="number"
                       min="0"
@@ -928,7 +912,7 @@ export function DashboardPage() {
                       return (
                         <div
                           key={item.categoryId}
-                          className="grid gap-3 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-4 lg:grid-cols-[1fr_120px_1fr_1fr]"
+                          className="grid gap-3 rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-4 lg:grid-cols-[1fr_120px_1fr_1fr]"
                         >
                           <div>
                             <p className="font-medium text-[var(--color-on-surface)]">{item.categoryName}</p>
@@ -980,34 +964,29 @@ export function DashboardPage() {
                 )}
 
                 <div className="flex justify-end">
-                  <Button
-                    disabled={isSavingPlan || planSummary.exceeds}
-                    onClick={() => void handleSaveMonthlyPlan()}
-                    size="icon-md"
-                    title={isSavingPlan ? "Guardando..." : "Guardar planeación"}
-                  >
-                    <Save className="h-5 w-5" />
+                  <Button disabled={isSavingPlan || planSummary.exceeds} onClick={() => void handleSaveMonthlyPlan()}>
+                    {isSavingPlan ? "Guardando..." : "Guardar planeación"}
                   </Button>
                 </div>
               </div>
             </section>
 
             <div className="space-y-6">
-              <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-                <div className="border-b border-[var(--color-outline-variant)] px-5 py-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+                <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+                  <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
                     <div>
-                      <h3 className="font-semibold text-[var(--color-on-surface)]">Transferencias</h3>
-                      <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
-                        Historial de movimientos entre cuentas
+                      <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Historial de transferencias</h3>
+                      <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                        Rango independiente, total acumulado y paginación inferior.
                       </p>
                     </div>
-                    <div className="rounded-full bg-[var(--color-surface)] px-3 py-1 text-xs font-medium text-[var(--color-on-surface-variant)]">
+                    <div className="rounded-full bg-[var(--color-surface)] px-3 py-1 text-sm text-[var(--color-on-surface-variant)]">
                       Total: {formatCurrency(transferSummary?.totalTransferred ?? 0, overview.currencyCode)}
                     </div>
                   </div>
                 </div>
-                <div className="space-y-4 px-5 py-4">
+                <div className="space-y-4 px-4 py-4">
                   <LocalFilterControls
                     range={transferFilter.range}
                     active={transferFilter.active}
@@ -1070,17 +1049,12 @@ export function DashboardPage() {
                 </div>
               </section>
 
-              <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-                <div className="border-b border-[var(--color-outline-variant)] px-5 py-4">
-                  <div className="flex items-center gap-2">
-                    <HandCoins className="h-5 w-5 text-[var(--color-error)]" />
-                    <div>
-                      <h3 className="font-semibold text-[var(--color-on-surface)]">Deudas pendientes</h3>
-                      <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
-                        Compromisos activos con saldo restante
-                      </p>
-                    </div>
-                  </div>
+              <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+                <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+                  <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Deudas pendientes</h3>
+                  <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                    Resumen de compromisos activos con saldo restante.
+                  </p>
                 </div>
                 {overview.debtSummary.items.length === 0 ? (
                   <EmptyState
@@ -1091,14 +1065,14 @@ export function DashboardPage() {
                 ) : (
                   <div className="divide-y divide-[var(--color-outline-variant)]">
                     {overview.debtSummary.items.map((debt) => (
-                      <div key={debt.id} className="flex items-start justify-between gap-3 px-5 py-4">
+                      <div key={debt.id} className="flex items-start justify-between gap-3 px-4 py-4">
                         <div className="min-w-0">
                           <p className="font-medium text-[var(--color-on-surface)]">{debt.name}</p>
-                          <p className="mt-0.5 text-xs text-[var(--color-on-surface-variant)]">
+                          <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
                             Días esperados: {debt.paymentDays.join(", ")}
                           </p>
                         </div>
-                        <p className="shrink-0 text-sm font-semibold text-[var(--color-error)]">
+                        <p className="text-sm font-semibold text-[var(--color-error)]">
                           {formatCurrency(debt.remainingAmount, overview.currencyCode)}
                         </p>
                       </div>

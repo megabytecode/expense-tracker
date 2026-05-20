@@ -24,12 +24,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Check session on mount
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
     fetch(`${import.meta.env.VITE_API_URL}/auth/me`, {
       credentials: 'include',
-      signal: controller.signal,
     })
       .then((res) => {
         if (res.ok) return res.json();
@@ -37,15 +33,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
       .then((data) => setUser(data.user))
       .catch(() => setUser(null))
-      .finally(() => {
-        clearTimeout(timeoutId);
-        setIsLoading(false);
-      });
-      
-    return () => {
-      clearTimeout(timeoutId);
-      controller.abort();
-    };
+      .finally(() => setIsLoading(false));
   }, []);
 
   const logout = async () => {
