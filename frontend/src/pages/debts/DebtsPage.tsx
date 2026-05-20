@@ -1,14 +1,25 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Power, Wallet } from "lucide-react";
+import { Calculator, Plus, Pencil, Power, Wallet } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { Input } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
 import { EmptyState, ErrorState, LoadingState } from "../../components/ui/EmptyState";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../../components/ui/Table";
 import { fetchApi } from "../../api/client";
 
 type DebtStatus = "active" | "paid" | "inactive";
+type InterestPeriod = "monthly" | "annual";
+type TermPeriod = "months" | "years";
+type CalculationType = "fixed-payment" | "fixed-principal";
 
 interface Debt {
   id: string;
@@ -22,10 +33,27 @@ interface Debt {
   status: DebtStatus;
 }
 
+interface AmortizationRow {
+  period: number;
+  payment: number;
+  principal: number;
+  interest: number;
+  remainingBalance: number;
+}
+
 const PAYMENT_DAYS = Array.from({ length: 31 }, (_, index) => index + 1);
 
 function formatCurrency(value: number) {
-  return new Intl.NumberFormat().format(value);
+  return new Intl.NumberFormat("es-CO", {
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatDecimalCurrency(value: number) {
+  return new Intl.NumberFormat("es-CO", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+  }).format(value);
 }
 
 function statusLabel(status: DebtStatus) {
@@ -50,6 +78,85 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Ocurrió un error inesperado.";
 }
 
+function calculateLoanSimulation(params: {
+  amount: number;
+  annualOrMonthlyRate: number;
+  interestPeriod: InterestPeriod;
+  term: number;
+  termPeriod: TermPeriod;
+  calculationType: CalculationType;
+}) {
+  const months = params.termPeriod === "years" ? params.term * 12 : params.term;
+  const monthlyRatePercent =
+    params.interestPeriod === "annual" ? params.annualOrMonthlyRate / 12 : params.annualOrMonthlyRate;
+  const monthlyRate = monthlyRatePercent / 100;
+
+  if (!Number.isFinite(params.amount) || !Number.isFinite(months) || params.amount <= 0 || months <= 0) {
+    return null;
+  }
+
+  if (!Number.isFinite(monthlyRate) || monthlyRate < 0) {
+    return null;
+  }
+
+  const roundedMonths = Math.max(1, Math.floor(months));
+  const rows: AmortizationRow[] = [];
+
+  if (params.calculationType === "fixed-payment") {
+    const payment =
+      monthlyRate === 0
+        ? params.amount / roundedMonths
+        : (params.amount * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -roundedMonths));
+    let balance = params.amount;
+
+    for (let period = 1; period <= roundedMonths; period += 1) {
+      const interest = balance * monthlyRate;
+      const principal = period === roundedMonths ? balance : Math.min(payment - interest, balance);
+      const currentPayment = principal + interest;
+      balance = Math.max(0, balance - principal);
+
+      rows.push({
+        period,
+        payment: currentPayment,
+        principal,
+        interest,
+        remainingBalance: balance,
+      });
+    }
+  } else {
+    const fixedPrincipal = params.amount / roundedMonths;
+    let balance = params.amount;
+
+    for (let period = 1; period <= roundedMonths; period += 1) {
+      const principal = period === roundedMonths ? balance : Math.min(fixedPrincipal, balance);
+      const interest = balance * monthlyRate;
+      const payment = principal + interest;
+      balance = Math.max(0, balance - principal);
+
+      rows.push({
+        period,
+        payment,
+        principal,
+        interest,
+        remainingBalance: balance,
+      });
+    }
+  }
+
+  const totalPayment = rows.reduce((sum, row) => sum + row.payment, 0);
+  const totalInterest = rows.reduce((sum, row) => sum + row.interest, 0);
+
+  return {
+    months: roundedMonths,
+    monthlyRatePercent,
+    firstPayment: rows[0]?.payment ?? 0,
+    lastPayment: rows[rows.length - 1]?.payment ?? 0,
+    totalPayment,
+    totalInterest,
+    rows,
+  };
+}
+
 export function DebtsPage() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [activePendingDebts, setActivePendingDebts] = useState<Debt[]>([]);
@@ -64,6 +171,14 @@ export function DebtsPage() {
     totalAmount: "",
     isActive: true,
     paymentDays: [] as number[],
+  });
+  const [calculatorData, setCalculatorData] = useState({
+    amount: "",
+    interestRate: "",
+    interestPeriod: "monthly" as InterestPeriod,
+    term: "",
+    termPeriod: "months" as TermPeriod,
+    calculationType: "fixed-payment" as CalculationType,
   });
 
   const loadDebts = async () => {
@@ -99,6 +214,19 @@ export function DebtsPage() {
       inactiveCount,
     };
   }, [activePendingDebts, debts]);
+
+  const loanSimulation = useMemo(
+    () =>
+      calculateLoanSimulation({
+        amount: Number(calculatorData.amount),
+        annualOrMonthlyRate: Number(calculatorData.interestRate),
+        interestPeriod: calculatorData.interestPeriod,
+        term: Number(calculatorData.term),
+        termPeriod: calculatorData.termPeriod,
+        calculationType: calculatorData.calculationType,
+      }),
+    [calculatorData]
+  );
 
   const openModal = (debt?: Debt) => {
     if (debt) {
@@ -222,6 +350,183 @@ export function DebtsPage() {
           </p>
         </div>
       </div>
+
+      <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+        <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 rounded-lg bg-[var(--color-secondary-container)]/15 p-2 text-[var(--color-secondary)]">
+              <Calculator className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--color-on-surface)]">Calculadora de préstamos</h2>
+              <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                Simula cuota fija o abono fijo a capital sin modificar tus deudas registradas.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-5 p-4 xl:grid-cols-[minmax(280px,420px)_1fr]">
+          <div className="space-y-4">
+            <Input
+              label="Monto del préstamo"
+              type="number"
+              min="0"
+              step="0.01"
+              value={calculatorData.amount}
+              onChange={(event) => setCalculatorData({ ...calculatorData, amount: event.target.value })}
+              placeholder="Ej. 12000000"
+            />
+
+            <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
+              <Input
+                label="Tasa de interés"
+                type="number"
+                min="0"
+                step="0.01"
+                value={calculatorData.interestRate}
+                onChange={(event) => setCalculatorData({ ...calculatorData, interestRate: event.target.value })}
+                placeholder="Ej. 2.1"
+              />
+              <Select
+                label="Periodo"
+                value={calculatorData.interestPeriod}
+                onChange={(event) =>
+                  setCalculatorData({
+                    ...calculatorData,
+                    interestPeriod: event.target.value as InterestPeriod,
+                  })
+                }
+              >
+                <option value="monthly">Mensual</option>
+                <option value="annual">Anual</option>
+              </Select>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[1fr_150px]">
+              <Input
+                label="Plazo"
+                type="number"
+                min="1"
+                step="1"
+                value={calculatorData.term}
+                onChange={(event) => setCalculatorData({ ...calculatorData, term: event.target.value })}
+                placeholder="Ej. 36"
+              />
+              <Select
+                label="Unidad"
+                value={calculatorData.termPeriod}
+                onChange={(event) =>
+                  setCalculatorData({
+                    ...calculatorData,
+                    termPeriod: event.target.value as TermPeriod,
+                  })
+                }
+              >
+                <option value="months">Meses</option>
+                <option value="years">Años</option>
+              </Select>
+            </div>
+
+            <Select
+              label="Tipo de cálculo"
+              value={calculatorData.calculationType}
+              onChange={(event) =>
+                setCalculatorData({
+                  ...calculatorData,
+                  calculationType: event.target.value as CalculationType,
+                })
+              }
+            >
+              <option value="fixed-payment">Cuota fija</option>
+              <option value="fixed-principal">Abono fijo a capital</option>
+            </Select>
+
+            {loanSimulation ? (
+              <div className="rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm text-[var(--color-on-surface-variant)]">
+                Tasa mensual usada:{" "}
+                <span className="font-semibold text-[var(--color-on-surface)]">
+                  {loanSimulation.monthlyRatePercent.toFixed(4)}%
+                </span>{" "}
+                · Plazo calculado:{" "}
+                <span className="font-semibold text-[var(--color-on-surface)]">{loanSimulation.months} meses</span>
+              </div>
+            ) : (
+              <div className="rounded-lg bg-[var(--color-surface-container-low)] p-3 text-sm text-[var(--color-on-surface-variant)]">
+                Ingresa monto, tasa y plazo para ver la amortización.
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-0 space-y-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg bg-[var(--color-surface-container-low)] p-3">
+                <p className="text-xs uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
+                  {calculatorData.calculationType === "fixed-payment" ? "Cuota fija" : "Cuota inicial"}
+                </p>
+                <p className="mt-2 text-xl font-semibold text-[var(--color-on-surface)]">
+                  ${formatDecimalCurrency(loanSimulation?.firstPayment ?? 0)}
+                </p>
+                {loanSimulation && calculatorData.calculationType === "fixed-principal" ? (
+                  <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
+                    Final: ${formatDecimalCurrency(loanSimulation.lastPayment)}
+                  </p>
+                ) : null}
+              </div>
+              <div className="rounded-lg bg-[var(--color-surface-container-low)] p-3">
+                <p className="text-xs uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
+                  Total a pagar
+                </p>
+                <p className="mt-2 text-xl font-semibold text-[var(--color-on-surface)]">
+                  ${formatDecimalCurrency(loanSimulation?.totalPayment ?? 0)}
+                </p>
+              </div>
+              <div className="rounded-lg bg-[var(--color-surface-container-low)] p-3">
+                <p className="text-xs uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
+                  Intereses
+                </p>
+                <p className="mt-2 text-xl font-semibold text-[var(--color-error)]">
+                  ${formatDecimalCurrency(loanSimulation?.totalInterest ?? 0)}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-[var(--color-outline-variant)]">
+              <div className="border-b border-[var(--color-outline-variant)] px-4 py-3">
+                <h3 className="text-sm font-semibold text-[var(--color-on-surface)]">Tabla de amortización</h3>
+              </div>
+              {loanSimulation ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Cuota</TableHead>
+                      <TableHead className="text-right">Valor de la cuota</TableHead>
+                      <TableHead className="text-right">Abono a capital</TableHead>
+                      <TableHead className="text-right">Interés pagado</TableHead>
+                      <TableHead className="text-right">Saldo restante</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loanSimulation.rows.map((row) => (
+                      <TableRow key={row.period}>
+                        <TableCell className="font-medium text-[var(--color-on-surface)]">{row.period}</TableCell>
+                        <TableCell className="text-right">${formatDecimalCurrency(row.payment)}</TableCell>
+                        <TableCell className="text-right">${formatDecimalCurrency(row.principal)}</TableCell>
+                        <TableCell className="text-right">${formatDecimalCurrency(row.interest)}</TableCell>
+                        <TableCell className="text-right">${formatDecimalCurrency(row.remainingBalance)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="px-4 py-6 text-sm text-[var(--color-on-surface-variant)]">
+                  La tabla aparecerá cuando completes los campos de simulación.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
       <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
         <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
