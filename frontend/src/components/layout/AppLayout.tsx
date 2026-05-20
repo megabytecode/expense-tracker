@@ -54,14 +54,16 @@ export function AppLayout() {
             <Link 
               key={item.path} 
               to={item.path}
-              className={`flex-1 flex justify-center items-center gap-1.5 px-4 py-3 text-sm transition-colors whitespace-nowrap ${
+              aria-label={item.name}
+              title={item.name}
+              className={`flex-1 flex justify-center items-center px-4 py-3 text-sm transition-colors whitespace-nowrap ${
                 location.pathname === item.path 
                   ? "text-[var(--color-secondary)] border-b-2 border-[var(--color-secondary)] font-medium" 
                   : "text-[var(--color-on-surface-variant)]"
               }`}
             >
-              <item.icon className="w-4 h-4" />
-              {item.name}
+              <item.icon className="w-5 h-5" />
+              <span className="sr-only">{item.name}</span>
             </Link>
           ))}
         </div>
