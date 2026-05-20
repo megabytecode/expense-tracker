@@ -16,9 +16,9 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/40 p-0 sm:items-center sm:p-4">
       <div 
-        className={cn("max-h-[92vh] w-full max-w-md overflow-hidden rounded-t-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] shadow-[0_8px_30px_rgba(15,23,42,0.16)] sm:rounded-lg", className)}
+        className={cn("h-[100dvh] max-h-[100dvh] w-screen max-w-none overflow-hidden rounded-none border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] shadow-[0_8px_30px_rgba(15,23,42,0.16)] sm:h-auto sm:max-h-[92vh] sm:w-full sm:max-w-md sm:rounded-lg", className)}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -29,7 +29,7 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
             <X className="h-5 w-5" />
           </Button>
         </div>
-        <div className="max-h-[calc(92vh-65px)] overflow-y-auto p-4">
+        <div className="h-[calc(100dvh-65px)] overflow-y-auto p-4 sm:h-auto sm:max-h-[calc(92vh-65px)]">
           {children}
         </div>
       </div>

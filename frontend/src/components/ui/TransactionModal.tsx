@@ -51,6 +51,16 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Ocurrió un error inesperado.";
 }
 
+function formatAccountBalance(value: number) {
+  return new Intl.NumberFormat("es-CO", {
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function getAccountOptionLabel(account: Account) {
+  return `${account.name} ($${formatAccountBalance(account.expectedBalance)})`;
+}
+
 export function TransactionModal({
   isOpen,
   onClose,
@@ -248,7 +258,7 @@ export function TransactionModal({
           >
             <option value="">Seleccione una cuenta</option>
             {accounts.map(acc => (
-              <option key={acc.id} value={acc.id}>{acc.name} (${acc.expectedBalance})</option>
+              <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
             ))}
           </Select>
         )}
@@ -263,7 +273,7 @@ export function TransactionModal({
             >
               <option value="">Seleccione origen</option>
               {accounts.map(acc => (
-                <option key={acc.id} value={acc.id}>{acc.name} (${acc.expectedBalance})</option>
+                <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
               ))}
             </Select>
             <Select 
@@ -274,7 +284,7 @@ export function TransactionModal({
             >
               <option value="">Seleccione destino</option>
               {accounts.map(acc => (
-                <option key={acc.id} value={acc.id}>{acc.name} (${acc.expectedBalance})</option>
+                <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
               ))}
             </Select>
           </div>

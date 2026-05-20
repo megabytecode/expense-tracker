@@ -1086,8 +1086,8 @@ export function DashboardPage() {
       )}
 
       <div className="fixed bottom-5 right-4 z-40 flex flex-col gap-3">
-        <QuickActionFab icon={TrendingDown} label="Agregar gasto" onClick={() => openQuickAction("expense")} />
-        <QuickActionFab icon={TrendingUp} label="Agregar ingreso" onClick={() => openQuickAction("income")} tone="positive" />
+        <QuickActionFab icon={TrendingDown} label="Agregar gasto" onClick={() => openQuickAction("expense")} tone="danger" />
+        <QuickActionFab icon={TrendingUp} label="Agregar ingreso" onClick={() => openQuickAction("income")} />
         <QuickActionFab icon={ArrowRightLeft} label="Registrar transferencia" onClick={() => openQuickAction("transfer")} />
       </div>
 

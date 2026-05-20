@@ -98,6 +98,8 @@ export function CategoriesPage() {
     }
   };
 
+  const visibleCategories = categories.filter((cat) => !cat.isProtected);
+
   return (
     <div className="space-y-6">
       <PageHeader 
@@ -119,7 +121,7 @@ export function CategoriesPage() {
         />
       ) : (
         <div className="bg-[var(--color-surface-container-lowest)] border border-[var(--color-outline-variant)] rounded-lg shadow-sm divide-y divide-[var(--color-outline-variant)]">
-          {categories.map(cat => (
+          {visibleCategories.map(cat => (
             <div key={cat.id} className="p-4 flex justify-between items-center hover:bg-surface-container-lowest">
               <div>
                 <h3 className="font-medium text-on-surface flex items-center">
@@ -144,7 +146,7 @@ export function CategoriesPage() {
               </div>
             </div>
           ))}
-          {categories.length === 0 && (
+          {visibleCategories.length === 0 && (
             <EmptyState
               className="m-4"
               title="No tienes categorías visibles"
