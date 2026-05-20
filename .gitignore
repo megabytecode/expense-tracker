@@ -19,6 +19,7 @@ coverage/
 .cache/
 frontend/dist/
 backend/dist/
+backend/storage/
 
 # TypeScript/Node generated artifacts accidentally emitted next to sources
 backend/prisma.config.js
