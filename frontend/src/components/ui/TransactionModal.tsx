@@ -4,7 +4,7 @@ import { Input } from "./Input";
 import { Select } from "./Select";
 import { Button } from "./Button";
 import { fetchApi } from "../../api/client";
-import { Plus, Trash2 } from "lucide-react";
+import { FileText, Paperclip, Plus, Trash2, X } from "lucide-react";
 
 interface Account {
   id: string;
@@ -56,6 +56,19 @@ interface Props {
 type TransactionModalType = "expense" | "income" | "transfer" | "manual_adjustment";
 type AllocationDraft = { clientId: string; accountId: string; amount: string };
 
+const ATTACHMENT_ACCEPT = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+].join(",");
+const MAX_ATTACHMENT_SIZE_BYTES = 50 * 1024 * 1024;
+
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Ocurrió un error inesperado.";
 }
@@ -64,6 +77,14 @@ function formatAccountBalance(value: number) {
   return new Intl.NumberFormat("es-CO", {
     maximumFractionDigits: 0,
   }).format(value);
+}
+
+function formatFileSize(bytes: number) {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
 function getAccountOptionLabel(account: Account) {
@@ -122,6 +143,7 @@ export function TransactionModal({
   const [accountId, setAccountId] = useState("");
   const [allocationRows, setAllocationRows] = useState<AllocationDraft[]>([createAllocationDraft()]);
   const [occurredAt, setOccurredAt] = useState(new Date().toISOString().slice(0, 10));
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
 
   // Transfer specific state
   const [destinationAccountId, setDestinationAccountId] = useState("");
@@ -135,6 +157,7 @@ export function TransactionModal({
     setAllocationRows([createAllocationDraft()]);
     setDestinationAccountId("");
     setOccurredAt(new Date().toISOString().slice(0, 10));
+    setSelectedFiles([]);
     setError("");
   }, []);
 
@@ -247,6 +270,39 @@ export function TransactionModal({
     });
   };
 
+  const updateSelectedFiles = (files: FileList | null) => {
+    const nextFiles = Array.from(files ?? []);
+    const oversizedFile = nextFiles.find((file) => file.size > MAX_ATTACHMENT_SIZE_BYTES);
+
+    if (oversizedFile) {
+      setError(`${oversizedFile.name} supera el límite de 50 MB.`);
+      return;
+    }
+
+    setError("");
+    setSelectedFiles(nextFiles);
+  };
+
+  const removeSelectedFile = (fileIndex: number) => {
+    setSelectedFiles((currentFiles) => currentFiles.filter((_, index) => index !== fileIndex));
+  };
+
+  const uploadSelectedFiles = async (ownerType: "transactions" | "transfers", ownerId: string) => {
+    if (selectedFiles.length === 0) {
+      return;
+    }
+
+    const formData = new FormData();
+    for (const file of selectedFiles) {
+      formData.append("files", file);
+    }
+
+    await fetchApi(`/${ownerType}/${ownerId}/attachments`, {
+      method: "POST",
+      body: formData,
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -254,7 +310,7 @@ export function TransactionModal({
 
     try {
       if (type === "transfer") {
-        await fetchApi("/transfers", {
+        const transfer = await fetchApi("/transfers", {
           method: "POST",
           body: JSON.stringify({
             sourceAccountId: accountId,
@@ -264,6 +320,7 @@ export function TransactionModal({
             occurredAt: new Date(occurredAt).toISOString()
           })
         });
+        await uploadSelectedFiles("transfers", transfer.id);
       } else {
         const endpoint = initialTransaction ? `/transactions/${initialTransaction.id}` : "/transactions";
         const allocations = supportsMultipleAllocations
@@ -277,7 +334,7 @@ export function TransactionModal({
               direction: type === 'manual_adjustment' ? (Number(amount) >= 0 ? 'in' : 'out') : undefined,
             }];
 
-        await fetchApi(endpoint, {
+        const transaction = await fetchApi(endpoint, {
           method: initialTransaction ? "PATCH" : "POST",
           body: JSON.stringify({
             type,
@@ -289,6 +346,7 @@ export function TransactionModal({
             allocations,
           })
         });
+        await uploadSelectedFiles("transactions", initialTransaction?.id ?? transaction.id);
       }
       onSuccess();
       onClose();
@@ -537,6 +595,58 @@ export function TransactionModal({
             )}
           </>
         )}
+
+        <div className="space-y-3 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-on-surface)]">
+                <Paperclip className="h-4 w-4" />
+                Comprobantes
+              </div>
+              <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
+                PDF, Word, Excel o imágenes. Máximo 50 MB por archivo.
+              </p>
+            </div>
+            <label className="inline-flex h-9 cursor-pointer items-center rounded-md border border-[var(--color-outline-variant)] px-3 text-sm font-medium text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container-high)]">
+              Adjuntar
+              <input
+                type="file"
+                multiple
+                accept={ATTACHMENT_ACCEPT}
+                className="sr-only"
+                onChange={(event) => updateSelectedFiles(event.target.files)}
+              />
+            </label>
+          </div>
+
+          {selectedFiles.length > 0 ? (
+            <div className="space-y-2">
+              {selectedFiles.map((file, index) => (
+                <div
+                  key={`${file.name}-${file.lastModified}`}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-3 py-2"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <FileText className="h-4 w-4 shrink-0 text-[var(--color-on-surface-variant)]" />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[var(--color-on-surface)]">{file.name}</p>
+                      <p className="text-xs text-[var(--color-on-surface-variant)]">{formatFileSize(file.size)}</p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeSelectedFile(index)}
+                    aria-label="Quitar comprobante"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
 
         <div className="flex justify-end pt-4">
           <Button type="button" variant="outline" onClick={onClose} className="mr-2">Cancelar</Button>

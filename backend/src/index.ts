@@ -16,6 +16,7 @@ import { debtRouter } from './controllers/debt.controller.js';
 import { savingsGoalRouter } from './controllers/savings-goal.controller.js';
 import { reportRouter } from './controllers/report.controller.js';
 import { adminRouter } from './controllers/admin.controller.js';
+import { attachmentRouter } from './controllers/attachment.controller.js';
 
 dotenv.config();
 
@@ -92,6 +93,27 @@ const swaggerDocument = {
       },
       post: {
         summary: 'Create a transaction for the authenticated user',
+      },
+    },
+    '/transactions/{id}/attachments': {
+      get: {
+        summary: 'List attachments for an authenticated user transaction',
+      },
+      post: {
+        summary: 'Upload receipts or documents for an authenticated user transaction',
+      },
+    },
+    '/transfers/{id}/attachments': {
+      get: {
+        summary: 'List attachments for an authenticated user transfer',
+      },
+      post: {
+        summary: 'Upload receipts or documents for an authenticated user transfer',
+      },
+    },
+    '/attachments/{id}/download': {
+      get: {
+        summary: 'Download an authenticated user attachment',
       },
     },
     '/transactions/{id}': {
@@ -176,6 +198,7 @@ apiRouter.use('/debts', debtRouter);
 apiRouter.use('/savings-goals', savingsGoalRouter);
 apiRouter.use('/reports', reportRouter);
 apiRouter.use('/admin', adminRouter);
+apiRouter.use('/', attachmentRouter);
 
 app.use('/api/v1', apiRouter);
 

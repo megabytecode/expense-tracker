@@ -147,6 +147,10 @@ export class TransactionService {
             },
           },
         },
+        attachments: {
+          where: { isDeleted: false },
+          orderBy: { createdAt: 'desc' },
+        },
       },
       orderBy: { occurredAt: 'desc' }
     });
@@ -169,6 +173,10 @@ export class TransactionService {
               },
             },
           },
+        },
+        attachments: {
+          where: { isDeleted: false },
+          orderBy: { createdAt: 'desc' },
         },
       }
     });

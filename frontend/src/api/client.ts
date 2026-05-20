@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api/v1';
 
 const DEFAULT_GET_CACHE_TTL_MS = 2 * 60 * 1000;
 
@@ -48,10 +48,11 @@ async function readResponse(response: Response) {
 }
 
 async function requestApi(endpoint: string, fetchOptions: RequestInit) {
+  const isFormData = fetchOptions.body instanceof FormData;
   const response = await fetch(`${API_URL}${endpoint}`, {
     ...fetchOptions,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...fetchOptions.headers,
     },
     credentials: 'include',

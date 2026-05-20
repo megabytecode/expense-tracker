@@ -65,7 +65,11 @@ export class TransferService {
       where: { userId, isDeleted: false },
       include: {
         sourceAccount: true,
-        destinationAccount: true
+        destinationAccount: true,
+        attachments: {
+          where: { isDeleted: false },
+          orderBy: { createdAt: 'desc' },
+        },
       },
       orderBy: { occurredAt: 'desc' }
     });

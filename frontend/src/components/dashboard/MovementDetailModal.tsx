@@ -1,6 +1,7 @@
-import { ReceiptText, Tag, Wallet } from "lucide-react";
+import { Download, FileText, ReceiptText, Tag, Wallet } from "lucide-react";
 import { Modal } from "../ui/Modal";
 import { formatCurrency, formatDate } from "../../lib/formatters";
+import { API_URL } from "../../api/client";
 
 interface MovementDetail {
   id: string;
@@ -28,6 +29,13 @@ interface MovementDetail {
       name: string;
     } | null;
   }>;
+  attachments?: Array<{
+    id: string;
+    originalName: string;
+    mimeType: string;
+    sizeBytes: number;
+    createdAt: string;
+  }>;
 }
 
 interface MovementDetailModalProps {
@@ -42,6 +50,14 @@ const TYPE_LABELS: Record<MovementDetail["type"], string> = {
   expense: "Gasto",
   manual_adjustment: "Ajuste manual",
 };
+
+function formatFileSize(bytes: number) {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+}
 
 export function MovementDetailModal({
   isOpen,
@@ -123,6 +139,32 @@ export function MovementDetailModal({
             <div className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-4">
               <p className="text-sm font-medium text-[var(--color-on-surface)]">Notas</p>
               <p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">{detail.notes}</p>
+            </div>
+          ) : null}
+
+          {detail.attachments?.length ? (
+            <div className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)]">
+              <div className="border-b border-[var(--color-outline-variant)] px-4 py-3">
+                <div className="flex items-center gap-2 text-sm font-medium text-[var(--color-on-surface)]">
+                  <FileText className="h-4 w-4" />
+                  Comprobantes
+                </div>
+              </div>
+              <div className="divide-y divide-[var(--color-outline-variant)]">
+                {detail.attachments.map((attachment) => (
+                  <a
+                    key={attachment.id}
+                    href={`${API_URL}/attachments/${attachment.id}/download`}
+                    className="flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-[var(--color-surface-container-high)]"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-[var(--color-on-surface)]">{attachment.originalName}</p>
+                      <p className="text-xs text-[var(--color-on-surface-variant)]">{formatFileSize(attachment.sizeBytes)}</p>
+                    </div>
+                    <Download className="h-4 w-4 shrink-0 text-[var(--color-on-surface-variant)]" />
+                  </a>
+                ))}
+              </div>
             </div>
           ) : null}
         </div>
