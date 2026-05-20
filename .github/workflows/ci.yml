@@ -56,3 +56,22 @@ jobs:
       - name: Test backend
         working-directory: backend
         run: npm test
+
+  deploy-production:
+    name: Deploy production
+    needs: checks
+    if: github.event_name == 'push' && github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Trigger remote deploy
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          script_stop: true
+          script: |
+            /srv/apps/expense-tracker/bin/deploy expense-tracker production
