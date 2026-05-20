@@ -707,8 +707,7 @@ export class ReportService {
       return map;
     }, new Map<string, number>());
 
-    const baseCents = amountToCents(Number(user.monthlyExpenseBase));
-    const monthlyPlanMode = user.monthlyPlanMode === 'percentage' ? 'percentage' : 'amount';
+    const monthlyPlanMode = 'amount';
 
     const forecastFactor = (() => {
       let pointer = startOfMonth(range.startDate);
@@ -729,9 +728,7 @@ export class ReportService {
     const items = categories.map((category) => {
       const percentage = Number(category.budgetAllocations[0]?.percentage ?? 0);
       const plannedAmountCents = amountToCents(Number(category.budgetAllocations[0]?.amount ?? 0));
-      const forecastCents = monthlyPlanMode === 'percentage'
-        ? Math.round(baseCents * (percentage / 100) * forecastFactor)
-        : Math.round(plannedAmountCents * forecastFactor);
+      const forecastCents = Math.round(plannedAmountCents * forecastFactor);
       const actualCents = actualByCategory.get(category.id) ?? 0;
 
       return {

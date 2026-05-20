@@ -1,4 +1,51 @@
 import { prisma } from '../lib/prisma.js';
+import { amountToCents, centsToAmount } from '../lib/money.js';
+
+type CategoryPayload = {
+  name: string;
+  type: 'income' | 'expense';
+  monthlyBudgetAmount?: number;
+};
+
+function parseMonthlyBudgetAmount(value: number | undefined) {
+  if (value === undefined) {
+    return 0;
+  }
+
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error('El monto mensual de la categoría debe ser mayor o igual a cero.');
+  }
+
+  return centsToAmount(amountToCents(value));
+}
+
+function serializeCategory(category: {
+  id: string;
+  name: string;
+  type: string;
+  isHidden: boolean;
+  isProtected: boolean;
+  systemKey: string | null;
+  isActive: boolean;
+  deletedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  budgetAllocations?: Array<{ amount: unknown }>;
+}) {
+  return {
+    id: category.id,
+    name: category.name,
+    type: category.type,
+    isHidden: category.isHidden,
+    isProtected: category.isProtected,
+    systemKey: category.systemKey,
+    isActive: category.isActive,
+    deletedAt: category.deletedAt,
+    createdAt: category.createdAt,
+    updatedAt: category.updatedAt,
+    monthlyBudgetAmount: Number(category.budgetAllocations?.[0]?.amount ?? 0),
+  };
+}
 
 export class CategoryService {
   static async getOrCreateSystemCategory(userId: string, systemKey: 'MANUAL_ADJUSTMENT' | 'DEBT') {
@@ -28,22 +75,31 @@ export class CategoryService {
       this.getOrCreateSystemCategory(userId, 'DEBT'),
     ]);
 
-    return prisma.category.findMany({
+    const categories = await prisma.category.findMany({
       where: { 
         userId, 
         isActive: true, 
         deletedAt: null,
         isHidden: false, // Don't show manual adjustment
       },
+      include: {
+        budgetAllocations: {
+          where: { userId },
+          select: { amount: true },
+        },
+      },
       orderBy: { name: 'asc' },
     });
+
+    return categories.map(serializeCategory);
   }
 
-  static async createCategory(userId: string, data: { name: string; type: 'income' | 'expense' }) {
+  static async createCategory(userId: string, data: CategoryPayload) {
     const name = data.name.trim();
     if (!name) {
       throw new Error('El nombre de la categoría es obligatorio.');
     }
+    const monthlyBudgetAmount = parseMonthlyBudgetAmount(data.monthlyBudgetAmount);
 
     // Check for active duplicates
     const existing = await prisma.category.findFirst({
@@ -60,16 +116,49 @@ export class CategoryService {
       throw new Error(`Ya existe una categoría activa llamada '${name}' para el tipo '${data.type}'.`);
     }
 
-    return prisma.category.create({
-      data: {
-        userId,
-        name,
-        type: data.type,
-      },
+    const category = await prisma.$transaction(async (tx) => {
+      const created = await tx.category.create({
+        data: {
+          userId,
+          name,
+          type: data.type,
+        },
+        include: {
+          budgetAllocations: {
+            where: { userId },
+            select: { amount: true },
+          },
+        },
+      });
+
+      if (data.type === 'expense') {
+        await tx.user.update({
+          where: { id: userId },
+          data: { monthlyPlanMode: 'amount' },
+        });
+
+        await tx.categoryBudgetAllocation.create({
+          data: {
+            userId,
+            categoryId: created.id,
+            percentage: 0,
+            amount: monthlyBudgetAmount,
+          },
+        });
+      }
+
+      return created;
+    });
+
+    return serializeCategory({
+      ...category,
+      budgetAllocations: data.type === 'expense'
+        ? [{ amount: monthlyBudgetAmount }]
+        : category.budgetAllocations,
     });
   }
 
-  static async updateCategory(userId: string, categoryId: string, data: { name?: string; type?: 'income' | 'expense' }) {
+  static async updateCategory(userId: string, categoryId: string, data: Partial<CategoryPayload>) {
     const category = await prisma.category.findFirst({
       where: { id: categoryId, userId, isActive: true, deletedAt: null },
     });
@@ -86,6 +175,8 @@ export class CategoryService {
       ...(data.name !== undefined ? { name: data.name.trim() } : {}),
       ...(data.type !== undefined ? { type: data.type } : {}),
     };
+    const nextType = normalizedData.type ?? category.type;
+    const monthlyBudgetAmount = parseMonthlyBudgetAmount(data.monthlyBudgetAmount);
 
     if (normalizedData.name !== undefined && !normalizedData.name) {
       throw new Error('El nombre de la categoría es obligatorio.');
@@ -111,9 +202,59 @@ export class CategoryService {
       }
     }
 
-    return prisma.category.update({
-      where: { id: categoryId },
-      data: normalizedData,
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedCategory = await tx.category.update({
+        where: { id: categoryId },
+        data: normalizedData,
+        include: {
+          budgetAllocations: {
+            where: { userId },
+            select: { amount: true },
+          },
+        },
+      });
+
+      if (nextType === 'expense') {
+        await tx.user.update({
+          where: { id: userId },
+          data: { monthlyPlanMode: 'amount' },
+        });
+
+        await tx.categoryBudgetAllocation.upsert({
+          where: {
+            userId_categoryId: {
+              userId,
+              categoryId,
+            },
+          },
+          create: {
+            userId,
+            categoryId,
+            percentage: 0,
+            amount: monthlyBudgetAmount,
+          },
+          update: {
+            percentage: 0,
+            amount: monthlyBudgetAmount,
+          },
+        });
+      } else {
+        await tx.categoryBudgetAllocation.deleteMany({
+          where: {
+            userId,
+            categoryId,
+          },
+        });
+      }
+
+      return updatedCategory;
+    });
+
+    return serializeCategory({
+      ...updated,
+      budgetAllocations: nextType === 'expense'
+        ? [{ amount: monthlyBudgetAmount }]
+        : updated.budgetAllocations,
     });
   }
 

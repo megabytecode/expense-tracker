@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom"
-import { WalletCards, Tags, Settings, LayoutDashboard, ReceiptText, Target, Shield, CalendarDays } from "lucide-react"
+import { WalletCards, Tags, Settings, LayoutDashboard, ReceiptText, Target, Shield, History } from "lucide-react"
 import { useAuth } from "../../context/AuthContext";
 
 export function AppLayout() {
@@ -12,7 +12,7 @@ export function AppLayout() {
     { name: "Categorías", path: "/categories", icon: Tags },
     { name: "Deudas", path: "/debts", icon: ReceiptText },
     { name: "Metas", path: "/savings-goals", icon: Target },
-    { name: "Planner", path: "/monthly-planner", icon: CalendarDays },
+    { name: "Historial", path: "/history", icon: History },
     { name: "Ajustes", path: "/settings", icon: Settings },
   ];
 
