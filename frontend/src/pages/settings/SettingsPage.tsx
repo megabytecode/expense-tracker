@@ -1,9 +1,12 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { fetchApi } from "../../api/client";
 import { Input } from "../../components/ui/Input";
+import { Select } from "../../components/ui/Select";
 import { useAuth } from "../../context/AuthContext";
+
+type MonthlyPlanMode = "amount" | "percentage";
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Ocurrió un error inesperado.";
@@ -12,12 +15,33 @@ function getErrorMessage(error: unknown) {
 export function SettingsPage() {
   const { user, setUser } = useAuth();
   const [currencyDraft, setCurrencyDraft] = useState<string | null>(null);
+  const [monthlyPlanMode, setMonthlyPlanMode] = useState<MonthlyPlanMode>("amount");
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true);
   const [message, setMessage] = useState({ text: "", type: "" });
   const currencyCode = useMemo(
     () => currencyDraft ?? user?.currencyCode ?? "COP",
     [currencyDraft, user?.currencyCode],
   );
+
+  const loadSettings = useCallback(async () => {
+    try {
+      setIsLoadingSettings(true);
+      const settings = await fetchApi("/settings");
+      if (settings?.monthlyPlanMode === "percentage" || settings?.monthlyPlanMode === "amount") {
+        setMonthlyPlanMode(settings.monthlyPlanMode);
+      }
+    } catch (error) {
+      setMessage({ text: getErrorMessage(error), type: "error" });
+    } finally {
+      setIsLoadingSettings(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void loadSettings();
+  }, [loadSettings]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +56,13 @@ export function SettingsPage() {
         method: "PATCH",
         body: JSON.stringify({ currencyCode }),
       });
-      setMessage({ text: "Moneda actualizada correctamente.", type: "success" });
+
+      await fetchApi("/settings/monthly-plan-mode", {
+        method: "PATCH",
+        body: JSON.stringify({ monthlyPlanMode }),
+      });
+
+      setMessage({ text: "Preferencias actualizadas correctamente.", type: "success" });
       if (user) {
         setUser({ ...user, currencyCode: updated.currencyCode });
       }
@@ -73,8 +103,23 @@ export function SettingsPage() {
               Esta moneda se usará en todos los reportes y saldos.
             </p>
           </div>
+
+          <div>
+            <Select
+              label="Planeación mensual por categoría"
+              value={monthlyPlanMode}
+              onChange={(event) => setMonthlyPlanMode(event.target.value as MonthlyPlanMode)}
+              disabled={isLoadingSettings}
+            >
+              <option value="amount">Cantidad fija por categoría</option>
+              <option value="percentage">Porcentaje de la base mensual</option>
+            </Select>
+            <p className="mt-1 text-xs text-on-surface-variant">
+              El planner mensual usará este modo para capturar y calcular el forecast por categoría.
+            </p>
+          </div>
           
-          <Button type="submit" disabled={isSaving || currencyCode === user?.currencyCode}>
+          <Button type="submit" disabled={isSaving || isLoadingSettings}>
             {isSaving ? "Guardando..." : "Guardar Cambios"}
           </Button>
         </form>

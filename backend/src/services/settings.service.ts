@@ -1,4 +1,15 @@
 import { prisma } from '../lib/prisma.js';
+import { amountToCents, centsToAmount } from '../lib/money.js';
+
+type MonthlyPlanMode = 'amount' | 'percentage';
+
+function normalizeMonthlyPlanMode(value: unknown): MonthlyPlanMode {
+  if (value === 'amount' || value === 'percentage') {
+    return value;
+  }
+
+  throw new Error('El modo de planeación mensual no es válido.');
+}
 
 export class SettingsService {
   static async getUserSettings(userId: string) {
@@ -7,6 +18,7 @@ export class SettingsService {
       select: {
         currencyCode: true,
         monthlyExpenseBase: true,
+        monthlyPlanMode: true,
       }
     });
   }
@@ -18,6 +30,7 @@ export class SettingsService {
         select: {
           currencyCode: true,
           monthlyExpenseBase: true,
+          monthlyPlanMode: true,
         },
       }),
       prisma.category.findMany({
@@ -36,6 +49,7 @@ export class SettingsService {
             select: {
               id: true,
               percentage: true,
+              amount: true,
             },
           },
         },
@@ -53,13 +67,18 @@ export class SettingsService {
       categoryId: category.id,
       categoryName: category.name,
       percentage: Number(category.budgetAllocations[0]?.percentage ?? 0),
+      amount: Number(category.budgetAllocations[0]?.amount ?? 0),
     }));
 
     return {
       currencyCode: user.currencyCode,
       monthlyExpenseBase: Number(user.monthlyExpenseBase),
+      monthlyPlanMode: normalizeMonthlyPlanMode(user.monthlyPlanMode),
       totalAssignedPercentage: Number(
         allocations.reduce((sum, allocation) => sum + allocation.percentage, 0).toFixed(2),
+      ),
+      totalAssignedAmount: centsToAmount(
+        allocations.reduce((sum, allocation) => sum + amountToCents(allocation.amount), 0),
       ),
       allocations,
     };
@@ -72,24 +91,47 @@ export class SettingsService {
     });
   }
 
+  static async updateMonthlyPlanMode(userId: string, monthlyPlanMode: MonthlyPlanMode) {
+    normalizeMonthlyPlanMode(monthlyPlanMode);
+
+    return prisma.user.update({
+      where: { id: userId },
+      data: { monthlyPlanMode },
+      select: {
+        currencyCode: true,
+        monthlyExpenseBase: true,
+        monthlyPlanMode: true,
+      },
+    });
+  }
+
   static async upsertMonthlyPlanSettings(
     userId: string,
     payload: {
       monthlyExpenseBase: number;
-      allocations: Array<{ categoryId: string; percentage: number }>;
+      monthlyPlanMode: MonthlyPlanMode;
+      allocations: Array<{ categoryId: string; percentage?: number; amount?: number }>;
     },
   ) {
     if (!Number.isFinite(payload.monthlyExpenseBase) || payload.monthlyExpenseBase < 0) {
       throw new Error('La base mensual debe ser un número mayor o igual a cero.');
     }
 
+    const monthlyPlanMode = normalizeMonthlyPlanMode(payload.monthlyPlanMode);
+    const monthlyExpenseBaseCents = amountToCents(payload.monthlyExpenseBase);
+
     const normalizedAllocations = payload.allocations.map((allocation) => ({
       categoryId: allocation.categoryId,
-      percentage: Number(allocation.percentage),
+      percentage: Number(allocation.percentage ?? 0),
+      amount: Number(allocation.amount ?? 0),
     }));
 
     if (normalizedAllocations.some((allocation) => !Number.isFinite(allocation.percentage) || allocation.percentage < 0)) {
       throw new Error('Los porcentajes deben ser números mayores o iguales a cero.');
+    }
+
+    if (normalizedAllocations.some((allocation) => !Number.isFinite(allocation.amount) || allocation.amount < 0)) {
+      throw new Error('Los montos deben ser números mayores o iguales a cero.');
     }
 
     const duplicatedCategoryIds = normalizedAllocations
@@ -100,8 +142,31 @@ export class SettingsService {
       throw new Error('No puedes repetir categorías en la planeación mensual.');
     }
 
-    const totalAssignedPercentage = normalizedAllocations.reduce((sum, allocation) => sum + allocation.percentage, 0);
-    if (totalAssignedPercentage > 100.0001) {
+    const allocationsToPersist = normalizedAllocations.map((allocation) => {
+      if (monthlyPlanMode === 'percentage') {
+        const percentage = Number(allocation.percentage.toFixed(2));
+        const amountCents = Math.round(monthlyExpenseBaseCents * (percentage / 100));
+        return {
+          categoryId: allocation.categoryId,
+          percentage,
+          amount: centsToAmount(amountCents),
+        };
+      }
+
+      const amountCents = amountToCents(allocation.amount);
+      const percentage = monthlyExpenseBaseCents > 0
+        ? Number(((amountCents / monthlyExpenseBaseCents) * 100).toFixed(2))
+        : 0;
+
+      return {
+        categoryId: allocation.categoryId,
+        percentage,
+        amount: centsToAmount(amountCents),
+      };
+    });
+
+    const totalAssignedPercentage = allocationsToPersist.reduce((sum, allocation) => sum + allocation.percentage, 0);
+    if (monthlyPlanMode === 'percentage' && totalAssignedPercentage > 100.0001) {
       throw new Error('La suma de porcentajes no puede superar el 100%.');
     }
 
@@ -130,6 +195,7 @@ export class SettingsService {
         where: { id: userId },
         data: {
           monthlyExpenseBase: payload.monthlyExpenseBase,
+          monthlyPlanMode,
         },
       });
 
@@ -137,12 +203,13 @@ export class SettingsService {
         where: { userId },
       });
 
-      if (normalizedAllocations.length > 0) {
+      if (allocationsToPersist.length > 0) {
         await tx.categoryBudgetAllocation.createMany({
-          data: normalizedAllocations.map((allocation) => ({
+          data: allocationsToPersist.map((allocation) => ({
             userId,
             categoryId: allocation.categoryId,
             percentage: allocation.percentage,
+            amount: allocation.amount,
           })),
         });
       }

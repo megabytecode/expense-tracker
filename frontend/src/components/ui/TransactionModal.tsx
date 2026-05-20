@@ -27,6 +27,13 @@ interface Debt {
   status: "active" | "paid" | "inactive";
 }
 
+interface MonthlyPlanItem {
+  categoryId: string;
+  categoryName: string;
+  forecastAmount: number;
+  actualAmount: number;
+}
+
 interface TransactionRecord {
   id: string;
   type: "income" | "expense" | "manual_adjustment";
@@ -76,6 +83,22 @@ function parseAmount(value: string) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function getCurrentMonthRange() {
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  return {
+    startDate: firstDay.toISOString().slice(0, 10),
+    endDate: now.toISOString().slice(0, 10),
+  };
+}
+
+function getBudgetTone(percentage: number) {
+  if (percentage <= 70) return "bg-emerald-500";
+  if (percentage <= 100) return "bg-amber-500";
+  return "bg-[var(--color-error)]";
+}
+
 export function TransactionModal({
   isOpen,
   onClose,
@@ -87,6 +110,7 @@ export function TransactionModal({
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [debts, setDebts] = useState<Debt[]>([]);
+  const [monthlyPlanItems, setMonthlyPlanItems] = useState<MonthlyPlanItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -155,6 +179,12 @@ export function TransactionModal({
           return [{ ...currentRows[0], accountId: accData[0].id }];
         });
       }
+
+      const range = getCurrentMonthRange();
+      const params = new URLSearchParams(range);
+      fetchApi(`/reports/overview?${params.toString()}`)
+        .then((data) => setMonthlyPlanItems(data.monthlyPlan?.items ?? []))
+        .catch(() => setMonthlyPlanItems([]));
     } catch (e) {
       console.error(e);
     }
@@ -173,6 +203,14 @@ export function TransactionModal({
   const debtCategory = categories.find((category) => category.systemKey === "DEBT");
   const isDebtExpense = type === "expense" && categoryId === debtCategory?.id;
   const selectedDebt = debts.find((debt) => debt.id === debtId);
+  const selectedMonthlyPlan = type === "expense"
+    ? monthlyPlanItems.find((item) => item.categoryId === categoryId)
+    : null;
+  const projectedCategorySpend = selectedMonthlyPlan ? selectedMonthlyPlan.actualAmount + parseAmount(amount) : 0;
+  const projectedExecutionPercentage = selectedMonthlyPlan && selectedMonthlyPlan.forecastAmount > 0
+    ? (projectedCategorySpend / selectedMonthlyPlan.forecastAmount) * 100
+    : 0;
+  const overflowPercentage = Math.max(0, projectedExecutionPercentage - 100);
   const supportsMultipleAllocations = type === "income" || type === "expense";
   const assignedAmount = allocationRows.reduce((sum, row) => sum + parseAmount(row.amount), 0);
   const remainingAmount = parseAmount(amount) - assignedAmount;
@@ -433,6 +471,40 @@ export function TransactionModal({
                 <option key={cat.id} value={cat.id}>{cat.name}</option>
               ))}
             </Select>
+
+            {selectedMonthlyPlan ? (
+              <div className="space-y-2 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
+                <div className="flex items-start justify-between gap-3 text-xs text-[var(--color-on-surface-variant)]">
+                  <span>
+                    Forecast mensual: <strong className="text-[var(--color-on-surface)]">${formatAccountBalance(selectedMonthlyPlan.forecastAmount)}</strong>
+                  </span>
+                  <span>
+                    Proyectado: <strong className="text-[var(--color-on-surface)]">${formatAccountBalance(projectedCategorySpend)}</strong>
+                  </span>
+                </div>
+                <div className="relative h-3 overflow-hidden rounded-full bg-[var(--color-surface-container-high)]">
+                  <div
+                    className={`h-full rounded-full transition-all ${projectedExecutionPercentage > 100 ? "bg-amber-500" : getBudgetTone(projectedExecutionPercentage)}`}
+                    style={{ width: `${Math.min(projectedExecutionPercentage, 100)}%` }}
+                  />
+                  {projectedExecutionPercentage > 100 ? (
+                    <div
+                      className="absolute right-0 top-0 h-full bg-[var(--color-error)]"
+                      style={{ width: `${Math.min(overflowPercentage, 100)}%` }}
+                    />
+                  ) : null}
+                </div>
+                <p className={`text-xs font-medium ${projectedExecutionPercentage > 100 ? "text-[var(--color-error)]" : "text-[var(--color-on-surface-variant)]"}`}>
+                  {selectedMonthlyPlan.forecastAmount <= 0
+                    ? "Esta categoría no tiene forecast mensual configurado."
+                    : `${projectedExecutionPercentage.toFixed(0)}% del forecast mensual con este movimiento.`}
+                </p>
+              </div>
+            ) : categoryId ? (
+              <p className="text-xs text-[var(--color-on-surface-variant)]">
+                Esta categoría todavía no tiene forecast configurado en el planner mensual.
+              </p>
+            ) : null}
 
             {isDebtExpense && (
               <div className="space-y-2 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">

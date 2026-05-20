@@ -85,6 +85,7 @@ type MonthlyPlanItem = {
   categoryId: string;
   categoryName: string;
   percentage: number;
+  amount: number;
   forecastAmount: number;
   actualAmount: number;
   varianceAmount: number;
@@ -118,8 +119,10 @@ type OverviewResponse = {
   monthlyPlan: {
     currencyCode: string;
     monthlyExpenseBase: number;
+    monthlyPlanMode: "amount" | "percentage";
     forecastFactor: number;
     totalAssignedPercentage: number;
+    totalAssignedAmount: number;
     items: MonthlyPlanItem[];
   };
 };
@@ -263,30 +266,11 @@ export function DashboardPage() {
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [transactionModalType, setTransactionModalType] = useState<"expense" | "income" | "transfer">("expense");
 
-  const [planBaseDraft, setPlanBaseDraft] = useState("");
-  const [planPercentages, setPlanPercentages] = useState<Record<string, string>>({});
-  const [planMessage, setPlanMessage] = useState({ type: "", text: "" });
-  const [isSavingPlan, setIsSavingPlan] = useState(false);
-
   const expenseRange = expenseFilter.active ? expenseFilter.range : globalRange;
   const incomeRange = incomeFilter.active ? incomeFilter.range : globalRange;
   const expenseItems = expenseOverride ?? overview?.expenseBreakdown ?? [];
   const incomeItems = incomeOverride ?? overview?.incomeBreakdown ?? [];
   const transferSummary = transfersOverride ?? overview?.transferSummary ?? null;
-
-  const planSummary = useMemo(() => {
-    const base = Number(planBaseDraft || 0);
-    const totalAssigned = Object.values(planPercentages).reduce((sum, value) => {
-      const numeric = Number(value);
-      return sum + (Number.isFinite(numeric) ? numeric : 0);
-    }, 0);
-
-    return {
-      base,
-      totalAssigned: Number(totalAssigned.toFixed(2)),
-      exceeds: totalAssigned > 100.0001,
-    };
-  }, [planBaseDraft, planPercentages]);
 
   const loadOverview = useCallback(async (range: DashboardRange) => {
     setIsLoadingOverview(true);
@@ -295,13 +279,6 @@ export function DashboardPage() {
     try {
       const data = await fetchApi(`/reports/overview?${buildQuery(range)}`);
       setOverview(data);
-      setPlanBaseDraft(String(data.monthlyPlan.monthlyExpenseBase));
-      setPlanPercentages(
-        data.monthlyPlan.items.reduce((draft: Record<string, string>, item: MonthlyPlanItem) => {
-          draft[item.categoryId] = String(item.percentage);
-          return draft;
-        }, {}),
-      );
       if (!expenseFilter.active) {
         setExpenseOverride(null);
       }
@@ -412,37 +389,6 @@ export function DashboardPage() {
       alert(getErrorMessage(error));
     } finally {
       setLoadingDetailId("");
-    }
-  }
-
-  async function handleSaveMonthlyPlan() {
-    setIsSavingPlan(true);
-    setPlanMessage({ type: "", text: "" });
-
-    try {
-      const allocations = (overview?.monthlyPlan.items ?? []).map((item) => ({
-        categoryId: item.categoryId,
-        percentage: Number(planPercentages[item.categoryId] ?? item.percentage ?? 0),
-      }));
-
-      await fetchApi("/settings/monthly-plan", {
-        method: "PUT",
-        body: JSON.stringify({
-          monthlyExpenseBase: Number(planBaseDraft),
-          allocations,
-        }),
-      });
-
-      setPlanMessage({
-        type: "success",
-        text: "Planeación mensual actualizada correctamente.",
-      });
-
-      await loadOverview(globalRange);
-    } catch (error) {
-      setPlanMessage({ type: "error", text: getErrorMessage(error) });
-    } finally {
-      setIsSavingPlan(false);
     }
   }
 
@@ -839,138 +785,7 @@ export function DashboardPage() {
             )}
           </section>
 
-          <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-            <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-              <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
-                <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Planeación mensual por categoría</h3>
-                    <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                      Define la base mensual y distribuye porcentajes organizativos para calcular forecast y compararlo con el gasto real acumulado del período.
-                    </p>
-                  </div>
-                  <div className="rounded-full bg-[var(--color-surface)] px-3 py-1 text-sm text-[var(--color-on-surface-variant)]">
-                    Asignado: {planSummary.totalAssigned.toFixed(2)}%
-                  </div>
-                </div>
-              </div>
-              <div className="space-y-4 px-4 py-4">
-                {planMessage.text ? (
-                  <div
-                    className={`rounded-xl px-4 py-3 text-sm ${
-                      planMessage.type === "success"
-                        ? "bg-emerald-100 text-emerald-800"
-                        : "bg-[var(--color-error-container)] text-[var(--color-on-error-container)]"
-                    }`}
-                  >
-                    {planMessage.text}
-                  </div>
-                ) : null}
-
-                <div className="grid gap-3 lg:grid-cols-[0.8fr_0.2fr]">
-                  <label className="text-sm">
-                    <span className="mb-2 block font-medium text-[var(--color-on-surface)]">Base mensual de gasto</span>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={planBaseDraft}
-                      onChange={(event) => setPlanBaseDraft(event.target.value)}
-                      className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-3 py-2 text-[var(--color-on-surface)] outline-none"
-                    />
-                  </label>
-                  <div className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] px-3 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
-                      Forecast factor
-                    </p>
-                    <p className="mt-2 text-lg font-semibold text-[var(--color-on-surface)]">
-                      {overview.monthlyPlan.forecastFactor.toFixed(2)}
-                    </p>
-                  </div>
-                </div>
-
-                {planSummary.exceeds ? (
-                  <div className="rounded-xl bg-[var(--color-error-container)] px-4 py-3 text-sm text-[var(--color-on-error-container)]">
-                    La suma de porcentajes no puede superar el 100%.
-                  </div>
-                ) : null}
-
-                {overview.monthlyPlan.items.length === 0 ? (
-                  <EmptyState
-                    title="No hay categorías de gasto activas"
-                    description="Crea categorías de gasto para distribuir la planeación mensual."
-                    className="py-10"
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    {overview.monthlyPlan.items.map((item) => {
-                      const percentageValue = planPercentages[item.categoryId] ?? String(item.percentage);
-                      const draftPercentage = Number(percentageValue || 0);
-                      const draftForecastAmount =
-                        Number(planBaseDraft || 0) * (draftPercentage / 100) * overview.monthlyPlan.forecastFactor;
-                      const draftVarianceAmount = item.actualAmount - draftForecastAmount;
-                      return (
-                        <div
-                          key={item.categoryId}
-                          className="grid gap-3 rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-4 lg:grid-cols-[1fr_120px_1fr_1fr]"
-                        >
-                          <div>
-                            <p className="font-medium text-[var(--color-on-surface)]">{item.categoryName}</p>
-                            <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                              Ejecutado: {item.executionPercentage.toFixed(0)}%
-                            </p>
-                          </div>
-                          <label className="text-sm">
-                            <span className="mb-2 block text-[var(--color-on-surface-variant)]">Porcentaje</span>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              step="0.01"
-                              value={percentageValue}
-                              onChange={(event) =>
-                                setPlanPercentages((current) => ({
-                                  ...current,
-                                  [item.categoryId]: event.target.value,
-                                }))
-                              }
-                              className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-3 py-2 text-[var(--color-on-surface)] outline-none"
-                            />
-                          </label>
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
-                              Forecast
-                            </p>
-                            <p className="mt-2 text-sm font-semibold text-[var(--color-on-surface)]">
-                              {formatCurrency(draftForecastAmount, overview.currencyCode)}
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
-                              Variación real
-                            </p>
-                            <p
-                              className={`mt-2 text-sm font-semibold ${
-                                draftVarianceAmount > 0 ? "text-[var(--color-error)]" : "text-emerald-700"
-                              }`}
-                            >
-                              {formatCurrency(draftVarianceAmount, overview.currencyCode)}
-                            </p>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                <div className="flex justify-end">
-                  <Button disabled={isSavingPlan || planSummary.exceeds} onClick={() => void handleSaveMonthlyPlan()}>
-                    {isSavingPlan ? "Guardando..." : "Guardar planeación"}
-                  </Button>
-                </div>
-              </div>
-            </section>
-
+          <div className="grid gap-6">
             <div className="space-y-6">
               <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
                 <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">

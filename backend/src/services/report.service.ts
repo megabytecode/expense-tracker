@@ -79,6 +79,7 @@ export class ReportService {
         select: {
           currencyCode: true,
           monthlyExpenseBase: true,
+          monthlyPlanMode: true,
         },
       }),
       Promise.all([
@@ -652,6 +653,7 @@ export class ReportService {
         select: {
           monthlyExpenseBase: true,
           currencyCode: true,
+          monthlyPlanMode: true,
         },
       }),
       prisma.category.findMany({
@@ -670,6 +672,7 @@ export class ReportService {
             select: {
               id: true,
               percentage: true,
+              amount: true,
             },
           },
         },
@@ -705,6 +708,7 @@ export class ReportService {
     }, new Map<string, number>());
 
     const baseCents = amountToCents(Number(user.monthlyExpenseBase));
+    const monthlyPlanMode = user.monthlyPlanMode === 'percentage' ? 'percentage' : 'amount';
 
     const forecastFactor = (() => {
       let pointer = startOfMonth(range.startDate);
@@ -724,13 +728,17 @@ export class ReportService {
 
     const items = categories.map((category) => {
       const percentage = Number(category.budgetAllocations[0]?.percentage ?? 0);
-      const forecastCents = Math.round(baseCents * (percentage / 100) * forecastFactor);
+      const plannedAmountCents = amountToCents(Number(category.budgetAllocations[0]?.amount ?? 0));
+      const forecastCents = monthlyPlanMode === 'percentage'
+        ? Math.round(baseCents * (percentage / 100) * forecastFactor)
+        : Math.round(plannedAmountCents * forecastFactor);
       const actualCents = actualByCategory.get(category.id) ?? 0;
 
       return {
         categoryId: category.id,
         categoryName: category.name,
         percentage: Number(percentage.toFixed(2)),
+        amount: centsToAmount(plannedAmountCents),
         forecastAmount: centsToAmount(forecastCents),
         actualAmount: centsToAmount(actualCents),
         varianceAmount: centsToAmount(actualCents - forecastCents),
@@ -741,12 +749,15 @@ export class ReportService {
     });
 
     const totalAssignedPercentage = items.reduce((sum, item) => sum + item.percentage, 0);
+    const totalAssignedAmountCents = items.reduce((sum, item) => sum + amountToCents(item.amount), 0);
 
     return {
       currencyCode: user.currencyCode,
       monthlyExpenseBase: Number(user.monthlyExpenseBase),
+      monthlyPlanMode,
       forecastFactor: Number(forecastFactor.toFixed(4)),
       totalAssignedPercentage: Number(totalAssignedPercentage.toFixed(2)),
+      totalAssignedAmount: centsToAmount(totalAssignedAmountCents),
       items,
     };
   }

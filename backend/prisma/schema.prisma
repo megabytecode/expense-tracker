@@ -13,6 +13,7 @@ model User {
   role                      String    @default("user") // admin | user
   currencyCode              String    @default("COP")
   monthlyExpenseBase        Decimal   @default(0.0) @db.Decimal(12, 2)
+  monthlyPlanMode           String    @default("amount") // amount | percentage
   storageLimitBytes         BigInt    @default(1073741824) // 1 GB
   storageUsedBytes          BigInt    @default(0)
   maxAttachmentsPerMovement Int       @default(5)
@@ -258,6 +259,7 @@ model CategoryBudgetAllocation {
   userId     String
   categoryId String
   percentage Decimal  @db.Decimal(5, 2)
+  amount     Decimal  @default(0.0) @db.Decimal(12, 2)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

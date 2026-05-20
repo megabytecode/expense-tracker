@@ -9,6 +9,7 @@ import { SettingsPage } from "./pages/settings/SettingsPage"
 import { DashboardPage } from "./pages/DashboardPage"
 import { DebtsPage } from "./pages/debts/DebtsPage"
 import { SavingsGoalsPage } from "./pages/savings-goals/SavingsGoalsPage"
+import { MonthlyPlannerPage } from "./pages/monthly-planner/MonthlyPlannerPage"
 import { AdminPage } from "./pages/admin/AdminPage"
 import { LoadingState } from "./components/ui/EmptyState"
 
@@ -52,6 +53,7 @@ function AppRoutes() {
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/debts" element={<DebtsPage />} />
         <Route path="/savings-goals" element={<SavingsGoalsPage />} />
+        <Route path="/monthly-planner" element={<MonthlyPlannerPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/admin" element={<ProtectedRoute requiredRole="admin"><AdminPage /></ProtectedRoute>} />
       </Route>

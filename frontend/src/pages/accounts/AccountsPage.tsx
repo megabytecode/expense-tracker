@@ -7,6 +7,8 @@ import { Modal } from "../../components/ui/Modal";
 import { Input } from "../../components/ui/Input";
 import { Select } from "../../components/ui/Select";
 import { EmptyState, ErrorState, LoadingState } from "../../components/ui/EmptyState";
+import { formatCurrency } from "../../lib/formatters";
+import { useAuth } from "../../context/AuthContext";
 
 interface Account {
   id: string;
@@ -17,6 +19,7 @@ interface Account {
 }
 
 export function AccountsPage() {
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -95,6 +98,12 @@ export function AccountsPage() {
     }
   };
 
+  const totalExpectedBalance = accounts.reduce((sum, account) => sum + account.expectedBalance, 0);
+  const totalSavingsBalance = accounts
+    .filter((account) => account.type === "savings")
+    .reduce((sum, account) => sum + account.expectedBalance, 0);
+  const currencyCode = user?.currencyCode ?? "COP";
+
   return (
     <div className="space-y-6">
       <PageHeader 
@@ -121,33 +130,50 @@ export function AccountsPage() {
           action={<Button onClick={() => openModal()}>Crear tu primera cuenta</Button>}
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {accounts.map(acc => (
-            <div key={acc.id} className="p-4 bg-[var(--color-surface-container-lowest)] border border-[var(--color-outline-variant)] rounded-lg shadow-sm">
-              <div className="flex justify-between items-start mb-2">
-                <div>
-                  <h3 className="font-semibold text-lg text-on-surface">{acc.name}</h3>
-                  <p className="text-sm text-on-surface-variant">
-                    {acc.type === "savings" ? "Ahorro" : "Dinero disponible"}
+        <div className="space-y-4">
+          <section className="grid gap-3 sm:grid-cols-2">
+            <article className="rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] p-4 shadow-sm">
+              <p className="text-sm text-on-surface-variant">Dinero esperado en todas las cuentas</p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-on-surface">
+                {formatCurrency(totalExpectedBalance, currencyCode)}
+              </p>
+            </article>
+            <article className="rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] p-4 shadow-sm">
+              <p className="text-sm text-on-surface-variant">Dinero en cuentas de ahorro</p>
+              <p className="mt-2 text-2xl font-semibold tracking-tight text-emerald-400">
+                {formatCurrency(totalSavingsBalance, currencyCode)}
+              </p>
+            </article>
+          </section>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {accounts.map(acc => (
+              <div key={acc.id} className="p-4 bg-[var(--color-surface-container-lowest)] border border-[var(--color-outline-variant)] rounded-lg shadow-sm">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <h3 className="font-semibold text-lg text-on-surface">{acc.name}</h3>
+                    <p className="text-sm text-on-surface-variant">
+                      {acc.type === "savings" ? "Ahorro" : "Dinero disponible"}
+                    </p>
+                  </div>
+                  <div className="flex space-x-1">
+                    <button onClick={() => openModal(acc)} className="p-1 text-on-surface-variant hover:text-primary">
+                      <Edit2 className="w-4 h-4" />
+                    </button>
+                    <button onClick={() => handleDeactivate(acc.id)} className="p-1 text-error hover:text-on-error-container">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-sm text-on-surface-variant">Saldo esperado</p>
+                  <p className="text-2xl font-bold font-['Inter'] tracking-tight">
+                    {formatCurrency(acc.expectedBalance, currencyCode)}
                   </p>
                 </div>
-                <div className="flex space-x-1">
-                  <button onClick={() => openModal(acc)} className="p-1 text-on-surface-variant hover:text-primary">
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDeactivate(acc.id)} className="p-1 text-error hover:text-on-error-container">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
               </div>
-              <div className="mt-4">
-                <p className="text-sm text-on-surface-variant">Saldo esperado</p>
-                <p className="text-2xl font-bold font-['Inter'] tracking-tight">
-                  {new Intl.NumberFormat().format(acc.expectedBalance)}
-                </p>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 

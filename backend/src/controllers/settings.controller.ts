@@ -1,5 +1,5 @@
 import express from 'express';
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import { requireAuth } from '../middlewares/auth.middleware.js';
 import type { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 import { SettingsService } from '../services/settings.service.js';
@@ -43,17 +43,32 @@ settingsRouter.patch('/currency', requireAuth, async (req: AuthenticatedRequest,
   }
 });
 
+settingsRouter.patch('/monthly-plan-mode', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
+  try {
+    const userId = req.user.id;
+    const { monthlyPlanMode } = req.body;
+
+    const settings = await SettingsService.updateMonthlyPlanMode(userId, monthlyPlanMode);
+    res.json(settings);
+  } catch (error: any) {
+    res.status(400).json({ error: error.message });
+  }
+});
+
 settingsRouter.put('/monthly-plan', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
   try {
     const userId = req.user.id;
     const monthlyExpenseBase = Number(req.body?.monthlyExpenseBase ?? 0);
+    const monthlyPlanMode = req.body?.monthlyPlanMode ?? 'amount';
     const allocations = Array.isArray(req.body?.allocations) ? req.body.allocations : [];
 
     const settings = await SettingsService.upsertMonthlyPlanSettings(userId, {
       monthlyExpenseBase,
+      monthlyPlanMode,
       allocations: allocations.map((allocation: any) => ({
         categoryId: allocation.categoryId,
-        percentage: Number(allocation.percentage),
+        percentage: Number(allocation.percentage ?? 0),
+        amount: Number(allocation.amount ?? 0),
       })),
     });
 
