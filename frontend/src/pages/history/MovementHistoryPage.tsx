@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ComponentProps } from "react";
-import { ArrowRightLeft, Eye, Pencil, ReceiptText, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { ArrowRightLeft, Download, Eye, Paperclip, Pencil, ReceiptText, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Button } from "../../components/ui/Button";
 import { EmptyState, ErrorState, LoadingState } from "../../components/ui/EmptyState";
@@ -18,6 +18,7 @@ import { MovementDetailModal } from "../../components/dashboard/MovementDetailMo
 import { PaginationControls } from "../../components/dashboard/PaginationControls";
 import { TransactionModal } from "../../components/ui/TransactionModal";
 import { useAuth } from "../../context/AuthContext";
+import { API_URL } from "../../api/client";
 
 type MovementFilter = "all" | "expense" | "income" | "transfer" | "manual_adjustment";
 
@@ -46,6 +47,7 @@ interface TransactionItem {
       name: string;
     } | null;
   }>;
+  attachments?: AttachmentSummary[];
 }
 
 interface TransferItem {
@@ -63,6 +65,12 @@ interface TransferItem {
     id: string;
     name: string;
   };
+  attachments?: AttachmentSummary[];
+}
+
+interface AttachmentSummary {
+  id: string;
+  originalName: string;
 }
 
 interface PaginatedResponse<T> {
@@ -103,6 +111,10 @@ function getMovementIcon(kind: MovementFilter) {
 
 function isTransferItem(item: HistoryItem) {
   return item.kind === "transfer";
+}
+
+function getItemAttachments(item: HistoryItem) {
+  return item.source.attachments ?? [];
 }
 
 function serializeTransactionForModal(transaction: TransactionItem) {
@@ -278,6 +290,7 @@ export function MovementHistoryPage() {
                 <TableHead>Movimiento</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Fecha</TableHead>
+                <TableHead>Archivos</TableHead>
                 <TableHead className="text-right">Monto</TableHead>
                 <TableHead className="w-32 text-right">Acciones</TableHead>
               </TableRow>
@@ -286,6 +299,9 @@ export function MovementHistoryPage() {
               {items.map((item) => {
                 const Icon = getMovementIcon(item.kind);
                 const isOutflow = item.kind === "expense" || item.kind === "transfer";
+                const attachments = getItemAttachments(item);
+                const visibleAttachments = attachments.slice(0, 2);
+                const remainingAttachments = attachments.length - visibleAttachments.length;
 
                 return (
                   <TableRow key={`${item.kind}-${item.id}`}>
@@ -302,6 +318,30 @@ export function MovementHistoryPage() {
                     </TableCell>
                     <TableCell className="text-[var(--color-on-surface-variant)]">{getMovementLabel(item.kind)}</TableCell>
                     <TableCell className="text-[var(--color-on-surface-variant)]">{formatDate(item.occurredAt)}</TableCell>
+                    <TableCell>
+                      {attachments.length > 0 ? (
+                        <div className="space-y-2">
+                          {visibleAttachments.map((attachment) => (
+                            <a
+                              key={attachment.id}
+                              href={`${API_URL}/attachments/${attachment.id}/download`}
+                              className="flex max-w-56 items-center gap-2 text-xs text-[var(--color-primary)] hover:underline"
+                            >
+                              <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{attachment.originalName}</span>
+                              <Download className="h-3.5 w-3.5 shrink-0" />
+                            </a>
+                          ))}
+                          {remainingAttachments > 0 ? (
+                            <p className="text-xs text-[var(--color-on-surface-variant)]">
+                              +{remainingAttachments} archivo{remainingAttachments === 1 ? "" : "s"} más
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-[var(--color-on-surface-variant)]">Sin archivos</span>
+                      )}
+                    </TableCell>
                     <TableCell className={`text-right font-semibold ${isOutflow ? "text-[var(--color-error)]" : "text-emerald-500"}`}>
                       {isOutflow ? "-" : "+"}{formatCurrency(item.amount, user?.currencyCode ?? "COP")}
                     </TableCell>

@@ -460,7 +460,7 @@ export function DashboardPage() {
             ))}
           </div>
 
-          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="grid gap-6 xl:grid-cols-2">
             <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
               <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
                 <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Gastos por categoría</h3>
@@ -475,6 +475,22 @@ export function DashboardPage() {
               />
             </section>
 
+            <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+              <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+                <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Ingresos por categoría</h3>
+                <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                  Selecciona una categoría para ver su detalle paginado.
+                </p>
+              </div>
+              <IncomeCategoryTable
+                categories={incomeRows}
+                currencyCode={overview.currencyCode}
+                onSelect={(item) => handleCategorySelected("income", item)}
+              />
+            </section>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
             <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
               <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
                 <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Saldos esperados por cuenta</h3>
@@ -507,22 +523,6 @@ export function DashboardPage() {
                   ))
                 )}
               </div>
-            </section>
-          </div>
-
-          <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-            <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-              <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
-                <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Ingresos por categoría</h3>
-                <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                  Selecciona una categoría para ver su detalle paginado.
-                </p>
-              </div>
-              <IncomeCategoryTable
-                categories={incomeRows}
-                currencyCode={overview.currencyCode}
-                onSelect={(item) => handleCategorySelected("income", item)}
-              />
             </section>
 
             <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">

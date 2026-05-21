@@ -343,7 +343,7 @@ export function SavingsGoalsPage() {
 
             <Button
               onClick={openAllocationModal}
-              className="h-12 rounded-full bg-white text-[var(--color-primary-container)] hover:bg-white/90"
+              className="h-12 rounded-full bg-[var(--color-primary)] text-sky-100/80 hover:bg-[var(--color-primary)/90]"
             >
               <Sparkles className="mr-2 h-4 w-4" />
               Distribuir ahorro
