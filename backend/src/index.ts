@@ -17,6 +17,7 @@ import { savingsGoalRouter } from './controllers/savings-goal.controller.js';
 import { reportRouter } from './controllers/report.controller.js';
 import { adminRouter } from './controllers/admin.controller.js';
 import { attachmentRouter } from './controllers/attachment.controller.js';
+import { serializeJsonValue } from './lib/json.js';
 
 dotenv.config();
 
@@ -32,6 +33,12 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(cookieParser());
+app.use((_req, res, next) => {
+  const originalJson = res.json.bind(res);
+
+  res.json = (body?: any) => originalJson(serializeJsonValue(body));
+  next();
+});
 
 const swaggerDocument = {
   openapi: '3.0.0',
