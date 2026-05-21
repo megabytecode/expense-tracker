@@ -13,7 +13,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         className={cn(
-          "inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-outline)] disabled:pointer-events-none disabled:opacity-50",
+          "inline-flex cursor-pointer items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-outline)] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
           {
             "bg-[var(--color-primary-container)] text-[var(--color-on-primary-container)] hover:bg-[var(--color-primary-container)]/90":
               variant === "default",

@@ -45,12 +45,24 @@ interface TransactionRecord {
   debtPayments?: { debt?: { id: string } | null }[];
 }
 
+interface TransferRecord {
+  id: string;
+  reason: string;
+  amount: number;
+  occurredAt: string;
+  sourceAccountId?: string;
+  destinationAccountId?: string;
+  sourceAccount?: { id: string; name: string };
+  destinationAccount?: { id: string; name: string };
+}
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
   initialType?: "income" | "expense" | "transfer" | "manual_adjustment";
   initialTransaction?: TransactionRecord | null;
+  initialTransfer?: TransferRecord | null;
 }
 
 type TransactionModalType = "expense" | "income" | "transfer" | "manual_adjustment";
@@ -126,6 +138,7 @@ export function TransactionModal({
   onSuccess,
   initialType = "expense",
   initialTransaction = null,
+  initialTransfer = null,
 }: Props) {
   const [type, setType] = useState<TransactionModalType>(initialType);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -147,6 +160,7 @@ export function TransactionModal({
 
   // Transfer specific state
   const [destinationAccountId, setDestinationAccountId] = useState("");
+  const isEditing = Boolean(initialTransaction || initialTransfer);
 
   const resetForm = useCallback(() => {
     setCategoryId("");
@@ -162,8 +176,17 @@ export function TransactionModal({
   }, []);
 
   const hydrateForm = useCallback(() => {
-    setType(initialTransaction?.type || initialType);
+    setType(initialTransfer ? "transfer" : initialTransaction?.type || initialType);
     resetForm();
+
+    if (initialTransfer) {
+      setDescription(initialTransfer.reason || "");
+      setAmount(String(initialTransfer.amount));
+      setAccountId(initialTransfer.sourceAccountId || initialTransfer.sourceAccount?.id || "");
+      setDestinationAccountId(initialTransfer.destinationAccountId || initialTransfer.destinationAccount?.id || "");
+      setOccurredAt(initialTransfer.occurredAt.slice(0, 10));
+      return;
+    }
 
     if (initialTransaction) {
       setCategoryId(initialTransaction.categoryId || "");
@@ -180,7 +203,7 @@ export function TransactionModal({
       );
       setOccurredAt(initialTransaction.occurredAt.slice(0, 10));
     }
-  }, [initialTransaction, initialType, resetForm]);
+  }, [initialTransaction, initialTransfer, initialType, resetForm]);
 
   const loadData = useCallback(async () => {
     try {
@@ -192,7 +215,7 @@ export function TransactionModal({
       setAccounts(accData);
       setCategories(catData);
       setDebts(debtData);
-      if (!initialTransaction && accData.length > 0) {
+      if (!initialTransaction && !initialTransfer && accData.length > 0) {
         setAccountId(accData[0].id);
         setAllocationRows((currentRows) => {
           if (currentRows.length !== 1 || currentRows[0].accountId) {
@@ -211,7 +234,7 @@ export function TransactionModal({
     } catch (e) {
       console.error(e);
     }
-  }, [initialTransaction]);
+  }, [initialTransaction, initialTransfer]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -310,8 +333,9 @@ export function TransactionModal({
 
     try {
       if (type === "transfer") {
-        const transfer = await fetchApi("/transfers", {
-          method: "POST",
+        const endpoint = initialTransfer ? `/transfers/${initialTransfer.id}` : "/transfers";
+        const transfer = await fetchApi(endpoint, {
+          method: initialTransfer ? "PATCH" : "POST",
           body: JSON.stringify({
             sourceAccountId: accountId,
             destinationAccountId,
@@ -320,7 +344,7 @@ export function TransactionModal({
             occurredAt: new Date(occurredAt).toISOString()
           })
         });
-        await uploadSelectedFiles("transfers", transfer.id);
+        await uploadSelectedFiles("transfers", initialTransfer?.id ?? transfer.id);
       } else {
         const endpoint = initialTransaction ? `/transactions/${initialTransaction.id}` : "/transactions";
         const allocations = supportsMultipleAllocations
@@ -363,7 +387,7 @@ export function TransactionModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={initialTransaction ? "Editar movimiento" : "Nuevo movimiento"}
+      title={isEditing ? "Editar movimiento" : "Nuevo movimiento"}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="p-3 bg-error-container text-on-error-container rounded text-sm">{error}</div>}
@@ -373,8 +397,9 @@ export function TransactionModal({
             <button
               key={modalType}
               type="button"
+              disabled={isEditing}
               onClick={() => { setType(modalType); resetForm(); }}
-              className={`px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+              className={`cursor-pointer px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
                 type === modalType 
                   ? "bg-primary text-on-primary" 
                   : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"

@@ -13,7 +13,7 @@ function getErrorMessage(error: unknown) {
 }
 
 export function SettingsPage() {
-  const { user, setUser } = useAuth();
+  const { user, setUser, logout } = useAuth();
   const [currencyDraft, setCurrencyDraft] = useState<string | null>(null);
   const [monthlyPlanMode, setMonthlyPlanMode] = useState<MonthlyPlanMode>("amount");
   const [isSaving, setIsSaving] = useState(false);
@@ -123,6 +123,16 @@ export function SettingsPage() {
             {isSaving ? "Guardando..." : "Guardar Cambios"}
           </Button>
         </form>
+      </div>
+
+      <div className="rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] p-6 shadow-sm">
+        <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Sesión</h3>
+        <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+          Cierra tu sesión en este dispositivo.
+        </p>
+        <Button type="button" variant="outline" className="mt-4" onClick={() => void logout()}>
+          Cerrar sesión
+        </Button>
       </div>
     </div>
   );

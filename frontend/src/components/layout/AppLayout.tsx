@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom"
-import { WalletCards, Tags, Settings, LayoutDashboard, ReceiptText, Target, Shield, History } from "lucide-react"
+import { WalletCards, Tags, Settings, LayoutDashboard, ReceiptText, Target, Shield, ListChecks } from "lucide-react"
 import { useAuth } from "../../context/AuthContext";
 
 export function AppLayout() {
@@ -8,11 +8,11 @@ export function AppLayout() {
 
   const navItems = [
     { name: "Dashboard", path: "/", icon: LayoutDashboard },
-    { name: "Cuentas", path: "/accounts", icon: WalletCards },
     { name: "Categorías", path: "/categories", icon: Tags },
+    { name: "Movimientos", path: "/history", icon: ListChecks },
+    { name: "Cuentas", path: "/accounts", icon: WalletCards },
     { name: "Deudas", path: "/debts", icon: ReceiptText },
     { name: "Metas", path: "/savings-goals", icon: Target },
-    { name: "Historial", path: "/history", icon: History },
     { name: "Ajustes", path: "/settings", icon: Settings },
   ];
 
@@ -25,14 +25,14 @@ export function AppLayout() {
       <header className="sticky top-0 z-30 border-b border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]/80 backdrop-blur-sm">
         <div className="mx-auto max-w-6xl px-4 h-14 flex items-center justify-between">
           <div className="font-semibold text-lg text-[var(--color-on-surface)] flex items-center gap-6">
-            <Link to="/" className="hover:text-[var(--color-primary)]">Expense Tracker</Link>
+            <Link to="/" className="cursor-pointer hover:text-[var(--color-primary)]">Expense Tracker</Link>
             
             <nav className="hidden md:flex items-center gap-4 text-sm font-normal">
               {navItems.map((item) => (
                 <Link 
                   key={item.path} 
                   to={item.path}
-                  className={`flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors ${
+                  className={`flex cursor-pointer items-center gap-1.5 px-2 py-1 rounded-md transition-colors ${
                     location.pathname === item.path 
                       ? "bg-[var(--color-secondary-container)] text-[var(--color-on-secondary-container)] font-medium" 
                       : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container)] hover:text-[var(--color-on-surface)]"
@@ -56,7 +56,7 @@ export function AppLayout() {
               to={item.path}
               aria-label={item.name}
               title={item.name}
-              className={`flex-1 flex justify-center items-center px-4 py-3 text-sm transition-colors whitespace-nowrap ${
+              className={`flex-1 flex cursor-pointer justify-center items-center px-4 py-3 text-sm transition-colors whitespace-nowrap ${
                 location.pathname === item.path 
                   ? "text-[var(--color-secondary)] border-b-2 border-[var(--color-secondary)] font-medium" 
                   : "text-[var(--color-on-surface-variant)]"

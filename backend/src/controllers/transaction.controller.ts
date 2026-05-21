@@ -13,6 +13,15 @@ import {
 
 export const transactionRouter = express.Router();
 
+function parsePagination(value: unknown, fallback: number) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) {
+    return fallback;
+  }
+
+  return Math.floor(numeric);
+}
+
 function parseAllocations(value: unknown) {
   const allocations = parseArray(value, 'Las asignaciones');
   if (allocations.length === 0) {
@@ -36,7 +45,16 @@ function parseAllocations(value: unknown) {
 transactionRouter.get('/', requireAuth, async (req: AuthenticatedRequest, res: Response): Promise<any> => {
   try {
     const userId = req.user.id;
-    const transactions = await TransactionService.listTransactions(userId);
+    const hasPagination = req.query.page !== undefined || req.query.pageSize !== undefined;
+    const transactions = await TransactionService.listTransactions(
+      userId,
+      hasPagination
+        ? {
+            page: parsePagination(req.query.page, 1),
+            pageSize: Math.min(50, parsePagination(req.query.pageSize, 20)),
+          }
+        : undefined,
+    );
     res.json(transactions);
   } catch (error: any) {
     res.status(500).json({ error: error.message });

@@ -129,31 +129,61 @@ export class TransactionService {
     return amountToCents(Number(debt.totalAmount)) - paidCents;
   }
 
-  static async listTransactions(userId: string) {
-    return prisma.transaction.findMany({
-      where: { userId, isDeleted: false },
+  private static transactionInclude = {
+    category: true,
+    allocations: {
+      include: { account: true }
+    },
+    debtPayments: {
       include: {
-        category: true,
-        allocations: {
-          include: { account: true }
-        },
-        debtPayments: {
-          include: {
-            debt: {
-              select: {
-                id: true,
-                name: true,
-              },
-            },
+        debt: {
+          select: {
+            id: true,
+            name: true,
           },
         },
-        attachments: {
-          where: { isDeleted: false },
-          orderBy: { createdAt: 'desc' },
-        },
       },
-      orderBy: { occurredAt: 'desc' }
-    });
+    },
+    attachments: {
+      where: { isDeleted: false },
+      orderBy: { createdAt: 'desc' },
+    },
+  } satisfies Prisma.TransactionInclude;
+
+  static async listTransactions(
+    userId: string,
+    pagination?: { page: number; pageSize: number },
+  ) {
+    if (!pagination) {
+      return prisma.transaction.findMany({
+        where: { userId, isDeleted: false },
+        include: this.transactionInclude,
+        orderBy: { occurredAt: 'desc' }
+      });
+    }
+
+    const [totalItems, items] = await Promise.all([
+      prisma.transaction.count({
+        where: { userId, isDeleted: false },
+      }),
+      prisma.transaction.findMany({
+        where: { userId, isDeleted: false },
+        include: this.transactionInclude,
+        orderBy: { occurredAt: 'desc' },
+        skip: (pagination.page - 1) * pagination.pageSize,
+        take: pagination.pageSize,
+      }),
+    ]);
+
+    return {
+      pagination: {
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        totalItems,
+        totalPages: Math.max(1, Math.ceil(totalItems / pagination.pageSize)),
+      },
+      items,
+    };
   }
 
   static async getTransaction(userId: string, id: string) {

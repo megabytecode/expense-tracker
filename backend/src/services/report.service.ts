@@ -88,7 +88,7 @@ export class ReportService {
         this.getMonthlyPlan(userId, range),
       ]),
       this.getExpectedBalancesByAccount(userId, range.endDate),
-      this.getTransferSummary(userId, range, { page: 1, pageSize: 10 }),
+      this.getTransferSummary(userId, range, { page: 1, pageSize: 20 }),
       this.getTotalSavings(userId, range.endDate),
       this.getSavingsGoalsSummary(userId),
       this.getDebtSummary(userId, range.endDate),

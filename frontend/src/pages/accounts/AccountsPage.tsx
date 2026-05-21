@@ -157,10 +157,10 @@ export function AccountsPage() {
                     </p>
                   </div>
                   <div className="flex space-x-1">
-                    <button onClick={() => openModal(acc)} className="p-1 text-on-surface-variant hover:text-primary">
+                    <button onClick={() => openModal(acc)} className="cursor-pointer p-1 text-on-surface-variant hover:text-primary">
                       <Edit2 className="w-4 h-4" />
                     </button>
-                    <button onClick={() => handleDeactivate(acc.id)} className="p-1 text-error hover:text-on-error-container">
+                    <button onClick={() => handleDeactivate(acc.id)} className="cursor-pointer p-1 text-error hover:text-on-error-container">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>

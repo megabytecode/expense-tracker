@@ -85,7 +85,7 @@ reportRouter.get('/category-movements', requireAuth, async (req: AuthenticatedRe
 
     const result = await ReportService.getCategoryMovements(req.user.id, type, categoryId, range, {
       page: parsePagination(req.query.page, 1),
-      pageSize: Math.min(50, parsePagination(req.query.pageSize, 10)),
+      pageSize: Math.min(50, parsePagination(req.query.pageSize, 20)),
     });
 
     res.json({
@@ -107,7 +107,7 @@ reportRouter.get('/transfers', requireAuth, async (req: AuthenticatedRequest, re
 
     const result = await ReportService.getTransferSummary(req.user.id, range, {
       page: parsePagination(req.query.page, 1),
-      pageSize: Math.min(50, parsePagination(req.query.pageSize, 10)),
+      pageSize: Math.min(50, parsePagination(req.query.pageSize, 20)),
     });
 
     res.json({

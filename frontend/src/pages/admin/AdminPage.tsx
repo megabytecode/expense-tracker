@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "../../components/ui/Table";
+import { PaginationControls } from "../../components/dashboard/PaginationControls";
 
 type AdminSegment = "all" | "admins" | "risk";
 
@@ -54,6 +55,7 @@ type LimitFormState = {
 };
 
 const BYTES_PER_GB = 1024 * 1024 * 1024;
+const PAGE_SIZE = 20;
 
 function formatBytesCompact(bytes: number) {
   if (bytes >= BYTES_PER_GB) {
@@ -87,6 +89,7 @@ export function AdminPage() {
   const [segment, setSegment] = useState<AdminSegment>("all");
   const [search, setSearch] = useState("");
   const [data, setData] = useState<AdminResponse | null>(null);
+  const [userPage, setUserPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -157,6 +160,13 @@ export function AdminPage() {
       },
     ];
   }, [data]);
+
+  const userTotalPages = data ? Math.max(1, Math.ceil(data.users.length / PAGE_SIZE)) : 1;
+  const visibleUserPage = Math.min(userPage, userTotalPages);
+  const visibleUsers = (data?.users ?? []).slice(
+    (visibleUserPage - 1) * PAGE_SIZE,
+    visibleUserPage * PAGE_SIZE,
+  );
 
   function openLimitModal(user: AdminUser) {
     setLimitForm({
@@ -296,6 +306,7 @@ export function AdminPage() {
               className="flex gap-2"
               onSubmit={(event) => {
                 event.preventDefault();
+                setUserPage(1);
                 loadUsers();
               }}
             >
@@ -311,7 +322,10 @@ export function AdminPage() {
               <Button
                 variant={segment === "all" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSegment("all")}
+                onClick={() => {
+                  setUserPage(1);
+                  setSegment("all");
+                }}
               >
                 <Users className="mr-2 h-4 w-4" />
                 Todos
@@ -319,7 +333,10 @@ export function AdminPage() {
               <Button
                 variant={segment === "admins" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSegment("admins")}
+                onClick={() => {
+                  setUserPage(1);
+                  setSegment("admins");
+                }}
               >
                 <Shield className="mr-2 h-4 w-4" />
                 Admins
@@ -327,7 +344,10 @@ export function AdminPage() {
               <Button
                 variant={segment === "risk" ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSegment("risk")}
+                onClick={() => {
+                  setUserPage(1);
+                  setSegment("risk");
+                }}
               >
                 <AlertTriangle className="mr-2 h-4 w-4" />
                 En riesgo
@@ -351,7 +371,7 @@ export function AdminPage() {
         ) : (
           <>
             <div className="mt-4 grid gap-4 md:hidden">
-              {data.users.map((user) => (
+              {visibleUsers.map((user) => (
                 <article
                   key={user.id}
                   className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-4"
@@ -422,7 +442,7 @@ export function AdminPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.users.map((user) => (
+                  {visibleUsers.map((user) => (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div>
@@ -473,6 +493,12 @@ export function AdminPage() {
                 </TableBody>
               </Table>
             </div>
+            <PaginationControls
+              page={visibleUserPage}
+              totalPages={userTotalPages}
+              totalItems={data.users.length}
+              onPageChange={setUserPage}
+            />
           </>
         )}
       </section>

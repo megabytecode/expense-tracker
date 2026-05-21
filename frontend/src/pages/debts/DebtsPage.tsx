@@ -42,6 +42,7 @@ interface AmortizationRow {
 }
 
 const PAYMENT_DAYS = Array.from({ length: 31 }, (_, index) => index + 1);
+const AMORTIZATION_PAGE_SIZE = 20;
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("es-CO", {
@@ -162,6 +163,8 @@ export function DebtsPage() {
   const [activePendingDebts, setActivePendingDebts] = useState<Debt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCalculatorOpen, setIsCalculatorOpen] = useState(false);
+  const [calculatorPage, setCalculatorPage] = useState(1);
   const [pageError, setPageError] = useState("");
   const [error, setError] = useState("");
   const [formData, setFormData] = useState({
@@ -227,6 +230,14 @@ export function DebtsPage() {
       }),
     [calculatorData]
   );
+  const amortizationTotalPages = loanSimulation
+    ? Math.max(1, Math.ceil(loanSimulation.rows.length / AMORTIZATION_PAGE_SIZE))
+    : 1;
+  const visibleCalculatorPage = Math.min(calculatorPage, amortizationTotalPages);
+  const amortizationRows = loanSimulation?.rows.slice(
+    (visibleCalculatorPage - 1) * AMORTIZATION_PAGE_SIZE,
+    visibleCalculatorPage * AMORTIZATION_PAGE_SIZE,
+  ) ?? [];
 
   const openModal = (debt?: Debt) => {
     if (debt) {
@@ -311,9 +322,14 @@ export function DebtsPage() {
         title="Deudas"
         description="Controla tus compromisos, días esperados de pago y saldo pendiente."
         action={
-          <Button onClick={() => openModal()}>
-            <Plus className="mr-2 h-4 w-4" /> Nueva deuda
-          </Button>
+          <div className="flex flex-row-reverse gap-2 sm:flex-row">
+            <Button type="button" variant="outline" onClick={() => setIsCalculatorOpen(true)}>
+              <Calculator className="mr-2 h-4 w-4" /> Calculadora
+            </Button>
+            <Button onClick={() => openModal()}>
+              <Plus className="mr-2 h-4 w-4" /> Nueva deuda
+            </Button>
+          </div>
         }
       />
 
@@ -351,7 +367,12 @@ export function DebtsPage() {
         </div>
       </div>
 
-      <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+      <Modal
+        isOpen={isCalculatorOpen}
+        onClose={() => setIsCalculatorOpen(false)}
+        title="Calculadora de préstamos"
+        className="max-w-6xl"
+      >
         <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
           <div className="flex items-start gap-3">
             <span className="mt-0.5 rounded-lg bg-[var(--color-secondary-container)]/15 p-2 text-[var(--color-secondary)]">
@@ -366,7 +387,7 @@ export function DebtsPage() {
           </div>
         </div>
 
-        <div className="grid gap-5 p-4 xl:grid-cols-[minmax(280px,420px)_1fr]">
+        <div className="grid max-h-[78vh] gap-5 overflow-y-auto p-1 xl:grid-cols-[minmax(280px,420px)_1fr]">
           <div className="space-y-4">
             <Input
               label="Monto del préstamo"
@@ -507,7 +528,7 @@ export function DebtsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loanSimulation.rows.map((row) => (
+                    {amortizationRows.map((row) => (
                       <TableRow key={row.period}>
                         <TableCell className="font-medium text-[var(--color-on-surface)]">{row.period}</TableCell>
                         <TableCell className="text-right">${formatDecimalCurrency(row.payment)}</TableCell>
@@ -523,10 +544,40 @@ export function DebtsPage() {
                   La tabla aparecerá cuando completes los campos de simulación.
                 </div>
               )}
+              {loanSimulation && loanSimulation.rows.length > AMORTIZATION_PAGE_SIZE ? (
+                <div className="flex flex-col gap-3 border-t border-[var(--color-outline-variant)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-sm text-[var(--color-on-surface-variant)]">
+                    {loanSimulation.rows.length} registros en total
+                  </p>
+                  <div className="flex items-center justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={calculatorPage <= 1}
+                      onClick={() => setCalculatorPage((page) => Math.max(1, page - 1))}
+                    >
+                      Anterior
+                    </Button>
+                    <span className="min-w-20 text-center text-sm text-[var(--color-on-surface-variant)]">
+                      {visibleCalculatorPage} / {amortizationTotalPages}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={visibleCalculatorPage >= amortizationTotalPages}
+                      onClick={() => setCalculatorPage((page) => Math.min(amortizationTotalPages, page + 1))}
+                    >
+                      Siguiente
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
-      </section>
+      </Modal>
 
       <section className="rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
         <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
@@ -609,7 +660,7 @@ export function DebtsPage() {
                     <button
                       type="button"
                       onClick={() => openModal(debt)}
-                      className="rounded-md p-2 text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-surface-container)] hover:text-[var(--color-on-surface)]"
+                      className="cursor-pointer rounded-md p-2 text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-surface-container)] hover:text-[var(--color-on-surface)]"
                       aria-label={`Editar ${debt.name}`}
                     >
                       <Pencil className="h-4 w-4" />
@@ -618,7 +669,7 @@ export function DebtsPage() {
                       <button
                         type="button"
                         onClick={() => handleDeactivate(debt)}
-                        className="rounded-md p-2 text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-error-container)] hover:text-[var(--color-on-error-container)]"
+                        className="cursor-pointer rounded-md p-2 text-[var(--color-on-surface-variant)] transition-colors hover:bg-[var(--color-error-container)] hover:text-[var(--color-on-error-container)]"
                         aria-label={`Desactivar ${debt.name}`}
                       >
                         <Power className="h-4 w-4" />
@@ -749,7 +800,7 @@ export function DebtsPage() {
                     key={day}
                     type="button"
                     onClick={() => togglePaymentDay(day)}
-                    className={`h-9 rounded-md text-sm font-medium transition-colors ${
+                    className={`h-9 cursor-pointer rounded-md text-sm font-medium transition-colors ${
                       selected
                         ? "bg-[var(--color-primary-container)] text-[var(--color-on-primary)]"
                         : "bg-[var(--color-surface-container-lowest)] text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container)]"

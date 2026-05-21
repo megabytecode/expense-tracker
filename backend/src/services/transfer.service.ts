@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { amountToCents, centsToAmount } from '../lib/money.js';
 import { AuditService } from './audit.service.js';
@@ -60,19 +61,49 @@ export class TransferService {
     }
   }
 
-  static async listTransfers(userId: string) {
-    return prisma.transfer.findMany({
-      where: { userId, isDeleted: false },
-      include: {
-        sourceAccount: true,
-        destinationAccount: true,
-        attachments: {
-          where: { isDeleted: false },
-          orderBy: { createdAt: 'desc' },
-        },
+  private static transferInclude = {
+    sourceAccount: true,
+    destinationAccount: true,
+    attachments: {
+      where: { isDeleted: false },
+      orderBy: { createdAt: 'desc' },
+    },
+  } satisfies Prisma.TransferInclude;
+
+  static async listTransfers(
+    userId: string,
+    pagination?: { page: number; pageSize: number },
+  ) {
+    if (!pagination) {
+      return prisma.transfer.findMany({
+        where: { userId, isDeleted: false },
+        include: this.transferInclude,
+        orderBy: { occurredAt: 'desc' }
+      });
+    }
+
+    const [totalItems, items] = await Promise.all([
+      prisma.transfer.count({
+        where: { userId, isDeleted: false },
+      }),
+      prisma.transfer.findMany({
+        where: { userId, isDeleted: false },
+        include: this.transferInclude,
+        orderBy: { occurredAt: 'desc' },
+        skip: (pagination.page - 1) * pagination.pageSize,
+        take: pagination.pageSize,
+      }),
+    ]);
+
+    return {
+      pagination: {
+        page: pagination.page,
+        pageSize: pagination.pageSize,
+        totalItems,
+        totalPages: Math.max(1, Math.ceil(totalItems / pagination.pageSize)),
       },
-      orderBy: { occurredAt: 'desc' }
-    });
+      items,
+    };
   }
 
   static async createTransfer(

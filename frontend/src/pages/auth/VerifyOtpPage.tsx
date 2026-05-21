@@ -89,7 +89,7 @@ export function VerifyOtpPage() {
             <button 
               type="button" 
               onClick={() => navigate('/login')}
-              className="text-sm text-[var(--color-secondary)] hover:underline"
+              className="cursor-pointer text-sm text-[var(--color-secondary)] hover:underline"
             >
               Use a different email
             </button>

@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowRightLeft,
-  CalendarRange,
   ChevronRight,
   HandCoins,
   PiggyBank,
@@ -27,7 +26,12 @@ import { formatCurrency, formatDate } from "../lib/formatters";
 import { PaginationControls } from "../components/dashboard/PaginationControls";
 import { QuickActionFab } from "../components/dashboard/QuickActionFab";
 import { MovementDetailModal } from "../components/dashboard/MovementDetailModal";
-import { CategoryBreakdownChart } from "../components/dashboard/CategoryBreakdownChart";
+import {
+  ExpenseCategoryTable,
+  IncomeCategoryTable,
+  type CategoryBudgetRow,
+  type IncomeCategoryRow,
+} from "../components/dashboard/CategoryBudgetTables";
 
 type DashboardRange = {
   startDate: string;
@@ -84,18 +88,14 @@ type DebtSummaryItem = {
 type MonthlyPlanItem = {
   categoryId: string;
   categoryName: string;
-  percentage: number;
   amount: number;
   forecastAmount: number;
   actualAmount: number;
-  varianceAmount: number;
-  executionPercentage: number;
 };
 
 type OverviewResponse = {
   range: { startDate: string; endDate: string };
   currencyCode: string;
-  monthlyExpenseBase: number;
   expenseBreakdown: BreakdownItem[];
   incomeBreakdown: BreakdownItem[];
   expectedBalances: ExpectedBalance[];
@@ -106,7 +106,6 @@ type OverviewResponse = {
   };
   totalSavings: number;
   savingsGoalsSummary: {
-    totalGoals: number;
     activeGoals: number;
     completedGoals: number;
     items: SavingsGoalSummaryItem[];
@@ -117,12 +116,6 @@ type OverviewResponse = {
     items: DebtSummaryItem[];
   };
   monthlyPlan: {
-    currencyCode: string;
-    monthlyExpenseBase: number;
-    monthlyPlanMode: "amount" | "percentage";
-    forecastFactor: number;
-    totalAssignedPercentage: number;
-    totalAssignedAmount: number;
     items: MonthlyPlanItem[];
   };
 };
@@ -174,11 +167,6 @@ type TransactionDetail = {
   }>;
 };
 
-type LocalFilterState = {
-  active: boolean;
-  range: DashboardRange;
-};
-
 type SelectedCategory = {
   type: BreakdownType;
   categoryId: string;
@@ -212,13 +200,6 @@ function buildQuery(range: DashboardRange, extra: Record<string, string | number
   return searchParams.toString();
 }
 
-function copyRange(range: DashboardRange): DashboardRange {
-  return {
-    startDate: range.startDate,
-    endDate: range.endDate,
-  };
-}
-
 function getTypePillClasses(type: "cash" | "savings") {
   return type === "savings"
     ? "bg-emerald-100 text-emerald-700"
@@ -226,7 +207,7 @@ function getTypePillClasses(type: "cash" | "savings") {
 }
 
 export function DashboardPage() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const defaultRange = useMemo(() => getCurrentMonthRange(), []);
 
   const [globalRange, setGlobalRange] = useState<DashboardRange>(defaultRange);
@@ -234,24 +215,7 @@ export function DashboardPage() {
   const [isLoadingOverview, setIsLoadingOverview] = useState(true);
   const [overviewError, setOverviewError] = useState("");
 
-  const [expenseFilter, setExpenseFilter] = useState<LocalFilterState>({
-    active: false,
-    range: copyRange(defaultRange),
-  });
-  const [incomeFilter, setIncomeFilter] = useState<LocalFilterState>({
-    active: false,
-    range: copyRange(defaultRange),
-  });
-  const [transferFilter, setTransferFilter] = useState<LocalFilterState>({
-    active: false,
-    range: copyRange(defaultRange),
-  });
-
-  const [expenseOverride, setExpenseOverride] = useState<BreakdownItem[] | null>(null);
-  const [incomeOverride, setIncomeOverride] = useState<BreakdownItem[] | null>(null);
-  const [transfersOverride, setTransfersOverride] = useState<OverviewResponse["transferSummary"] | null>(null);
-  const [expenseState, setExpenseState] = useState({ isLoading: false, error: "" });
-  const [incomeState, setIncomeState] = useState({ isLoading: false, error: "" });
+  const [transferSummary, setTransferSummary] = useState<OverviewResponse["transferSummary"] | null>(null);
   const [transferState, setTransferState] = useState({ isLoading: false, error: "" });
 
   const [selectedCategory, setSelectedCategory] = useState<SelectedCategory | null>(null);
@@ -266,85 +230,54 @@ export function DashboardPage() {
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
   const [transactionModalType, setTransactionModalType] = useState<"expense" | "income" | "transfer">("expense");
 
-  const expenseRange = expenseFilter.active ? expenseFilter.range : globalRange;
-  const incomeRange = incomeFilter.active ? incomeFilter.range : globalRange;
-  const expenseItems = expenseOverride ?? overview?.expenseBreakdown ?? [];
-  const incomeItems = incomeOverride ?? overview?.incomeBreakdown ?? [];
-  const transferSummary = transfersOverride ?? overview?.transferSummary ?? null;
-
   const loadOverview = useCallback(async (range: DashboardRange) => {
     setIsLoadingOverview(true);
     setOverviewError("");
 
     try {
-      const data = await fetchApi(`/reports/overview?${buildQuery(range)}`);
+      const data: OverviewResponse = await fetchApi(`/reports/overview?${buildQuery(range)}`);
       setOverview(data);
-      if (!expenseFilter.active) {
-        setExpenseOverride(null);
-      }
-      if (!incomeFilter.active) {
-        setIncomeOverride(null);
-      }
-      if (!transferFilter.active) {
-        setTransfersOverride(null);
-      }
-      setExpenseFilter((current) => (current.active ? current : { ...current, range: copyRange(range) }));
-      setIncomeFilter((current) => (current.active ? current : { ...current, range: copyRange(range) }));
-      setTransferFilter((current) => (current.active ? current : { ...current, range: copyRange(range) }));
+      setTransferSummary(data.transferSummary);
+      setSelectedCategory(null);
+      setMovements(null);
+      setMovementPage(1);
     } catch (error) {
       setOverviewError(getErrorMessage(error));
     } finally {
       setIsLoadingOverview(false);
     }
-  }, [expenseFilter.active, incomeFilter.active, transferFilter.active]);
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void loadOverview(globalRange);
   }, [globalRange, loadOverview]);
 
-  async function loadBreakdown(type: BreakdownType, range: DashboardRange) {
-    const setter = type === "expense" ? setExpenseOverride : setIncomeOverride;
-    const stateSetter = type === "expense" ? setExpenseState : setIncomeState;
-
-    stateSetter({ isLoading: true, error: "" });
-    try {
-      const data = await fetchApi(
-        `/reports/category-breakdown?${buildQuery(range, { type })}`,
-      );
-      setter(data.items);
-      stateSetter({ isLoading: false, error: "" });
-    } catch (error) {
-      stateSetter({ isLoading: false, error: getErrorMessage(error) });
-    }
-  }
-
-  async function loadTransfers(range: DashboardRange, page = 1) {
+  async function loadTransfers(page = 1) {
     setTransferState({ isLoading: true, error: "" });
     try {
       const data = await fetchApi(
-        `/reports/transfers?${buildQuery(range, { page, pageSize: 10 })}`,
+        `/reports/transfers?${buildQuery(globalRange, { page, pageSize: 20 })}`,
       );
-      setTransfersOverride(data);
+      setTransferSummary(data);
       setTransferState({ isLoading: false, error: "" });
     } catch (error) {
       setTransferState({ isLoading: false, error: getErrorMessage(error) });
     }
   }
 
-  async function loadCategoryMovements(
+  const loadCategoryMovements = useCallback(async (
     category: SelectedCategory,
-    range: DashboardRange,
     page: number,
-  ) {
+  ) => {
     setMovementState({ isLoading: true, error: "" });
     try {
       const data = await fetchApi(
-        `/reports/category-movements?${buildQuery(range, {
+        `/reports/category-movements?${buildQuery(globalRange, {
           type: category.type,
           categoryId: category.categoryId,
           page,
-          pageSize: 10,
+          pageSize: 20,
         })}`,
       );
       setMovements(data);
@@ -353,28 +286,22 @@ export function DashboardPage() {
       setMovements(null);
       setMovementState({ isLoading: false, error: getErrorMessage(error) });
     }
-  }
+  }, [globalRange]);
 
   useEffect(() => {
     if (!selectedCategory) {
       return;
     }
 
-    const activeRange = selectedCategory.type === "expense" ? expenseRange : incomeRange;
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    void loadCategoryMovements(selectedCategory, activeRange, movementPage);
-  }, [
-    selectedCategory,
-    movementPage,
-    expenseRange,
-    incomeRange,
-  ]);
+    void loadCategoryMovements(selectedCategory, movementPage);
+  }, [selectedCategory, movementPage, loadCategoryMovements]);
 
-  function handleCategorySelected(type: BreakdownType, item: BreakdownItem) {
+  function handleCategorySelected(type: BreakdownType, item: CategoryBudgetRow | IncomeCategoryRow) {
     setSelectedCategory({
       type,
-      categoryId: item.categoryId,
-      categoryName: item.categoryName,
+      categoryId: item.id,
+      categoryName: item.name,
     });
     setMovementPage(1);
   }
@@ -396,6 +323,19 @@ export function DashboardPage() {
     setTransactionModalType(type);
     setIsTransactionModalOpen(true);
   }
+
+  const expenseRows = (overview?.monthlyPlan.items ?? []).map((item) => ({
+    id: item.categoryId,
+    name: item.categoryName,
+    monthlyBudgetAmount: item.amount,
+    actualAmount: item.actualAmount,
+  }));
+
+  const incomeRows = (overview?.incomeBreakdown ?? []).map((item) => ({
+    id: item.categoryId,
+    name: item.categoryName,
+    totalAmount: item.totalAmount,
+  }));
 
   const summaryCards = overview
     ? [
@@ -432,12 +372,6 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6 pb-32">
-      <div className="flex justify-end">
-        <Button variant="outline" onClick={logout} className="text-sm">
-          Cerrar sesión
-        </Button>
-      </div>
-
       <PageHeader
         title="Dashboard"
         description={`Hola, ${user?.name || user?.email}. Este es tu panorama financiero del período.`}
@@ -461,8 +395,7 @@ export function DashboardPage() {
               Tu control financiero arranca con un filtro global claro.
             </h2>
             <p className="mt-3 text-sm leading-6 text-white/75">
-              El rango global alimenta la vista principal desde el primer día del mes actual y cada informe puede
-              afinarse sin afectar el resto.
+              El rango global alimenta los reportes del dashboard. Las tablas respetan este rango sin filtros locales adicionales.
             </p>
           </div>
 
@@ -498,11 +431,7 @@ export function DashboardPage() {
           <EmptyState
             title="No pudimos cargar el dashboard"
             description={overviewError}
-            action={
-              <Button onClick={() => void loadOverview(globalRange)}>
-                Reintentar
-              </Button>
-            }
+            action={<Button onClick={() => void loadOverview(globalRange)}>Reintentar</Button>}
           />
         </section>
       ) : !overview ? null : (
@@ -534,44 +463,16 @@ export function DashboardPage() {
           <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
             <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
               <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Gastos por categoría</h3>
-                    <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                      Las transferencias interbancarias quedan fuera de esta gráfica.
-                    </p>
-                  </div>
-                  <CalendarRange className="h-5 w-5 text-[var(--color-on-surface-variant)]" />
-                </div>
+                <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Gastos por categoría</h3>
+                <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                  El límite mensual es fijo; el gasto real usa el rango global.
+                </p>
               </div>
-              <div className="space-y-4 px-4 py-4">
-                <LocalFilterControls
-                  range={expenseFilter.range}
-                  active={expenseFilter.active}
-                  onRangeChange={(range) => setExpenseFilter((current) => ({ ...current, range }))}
-                  onApply={() => {
-                    setExpenseFilter((current) => ({ ...current, active: true }));
-                    void loadBreakdown("expense", expenseFilter.range);
-                  }}
-                  onReset={() => {
-                    setExpenseFilter({ active: false, range: copyRange(globalRange) });
-                    setExpenseOverride(null);
-                    setExpenseState({ isLoading: false, error: "" });
-                  }}
-                />
-                {expenseState.error ? (
-                  <InlineError message={expenseState.error} onRetry={() => void loadBreakdown("expense", expenseFilter.range)} />
-                ) : expenseState.isLoading ? (
-                  <LoadingBox label="Cargando gastos por categoría..." />
-                ) : (
-                  <CategoryBreakdownChart
-                    items={expenseItems}
-                    currencyCode={overview.currencyCode}
-                    accent="#ba1a1a"
-                    onSelect={(item) => handleCategorySelected("expense", item)}
-                  />
-                )}
-              </div>
+              <ExpenseCategoryTable
+                categories={expenseRows}
+                currencyCode={overview.currencyCode}
+                onSelect={(item) => handleCategorySelected("expense", item)}
+              />
             </section>
 
             <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
@@ -612,44 +513,16 @@ export function DashboardPage() {
           <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
             <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
               <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Ingresos por categoría</h3>
-                    <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                      Selecciona una categoría para ver su detalle paginado.
-                    </p>
-                  </div>
-                  <TrendingUp className="h-5 w-5 text-[var(--color-secondary)]" />
-                </div>
+                <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Ingresos por categoría</h3>
+                <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                  Selecciona una categoría para ver su detalle paginado.
+                </p>
               </div>
-              <div className="space-y-4 px-4 py-4">
-                <LocalFilterControls
-                  range={incomeFilter.range}
-                  active={incomeFilter.active}
-                  onRangeChange={(range) => setIncomeFilter((current) => ({ ...current, range }))}
-                  onApply={() => {
-                    setIncomeFilter((current) => ({ ...current, active: true }));
-                    void loadBreakdown("income", incomeFilter.range);
-                  }}
-                  onReset={() => {
-                    setIncomeFilter({ active: false, range: copyRange(globalRange) });
-                    setIncomeOverride(null);
-                    setIncomeState({ isLoading: false, error: "" });
-                  }}
-                />
-                {incomeState.error ? (
-                  <InlineError message={incomeState.error} onRetry={() => void loadBreakdown("income", incomeFilter.range)} />
-                ) : incomeState.isLoading ? (
-                  <LoadingBox label="Cargando ingresos por categoría..." />
-                ) : (
-                  <CategoryBreakdownChart
-                    items={incomeItems}
-                    currencyCode={overview.currencyCode}
-                    accent="#0058be"
-                    onSelect={(item) => handleCategorySelected("income", item)}
-                  />
-                )}
-              </div>
+              <IncomeCategoryTable
+                categories={incomeRows}
+                currencyCode={overview.currencyCode}
+                onSelect={(item) => handleCategorySelected("income", item)}
+              />
             </section>
 
             <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
@@ -699,7 +572,7 @@ export function DashboardPage() {
                 <div>
                   <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Movimientos por categoría seleccionada</h3>
                   <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                    Tabla paginada a 10 registros por defecto con acceso a detalle completo.
+                    Tabla paginada a 20 registros con acceso a detalle completo.
                   </p>
                 </div>
                 {selectedCategory ? (
@@ -717,15 +590,12 @@ export function DashboardPage() {
 
             {!selectedCategory ? (
               <EmptyState
-                title="Selecciona una categoría desde una gráfica"
-                description="Al hacer clic en una barra, aquí aparecerán los movimientos relacionados dentro del rango aplicable."
+                title="Selecciona una categoría desde una tabla"
+                description="Al hacer clic en una categoría, aquí aparecerán los movimientos relacionados dentro del rango global."
                 className="py-10"
               />
             ) : movementState.error ? (
-              <InlineError message={movementState.error} onRetry={() => {
-                const activeRange = selectedCategory.type === "expense" ? expenseRange : incomeRange;
-                void loadCategoryMovements(selectedCategory, activeRange, movementPage);
-              }} />
+              <InlineError message={movementState.error} onRetry={() => void loadCategoryMovements(selectedCategory, movementPage)} />
             ) : movementState.isLoading ? (
               <LoadingBox label="Cargando movimientos filtrados..." />
             ) : !movements || movements.items.length === 0 ? (
@@ -786,116 +656,93 @@ export function DashboardPage() {
           </section>
 
           <div className="grid gap-6">
-            <div className="space-y-6">
-              <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-                <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
-                  <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Historial de transferencias</h3>
-                      <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                        Rango independiente, total acumulado y paginación inferior.
-                      </p>
-                    </div>
-                    <div className="rounded-full bg-[var(--color-surface)] px-3 py-1 text-sm text-[var(--color-on-surface-variant)]">
-                      Total: {formatCurrency(transferSummary?.totalTransferred ?? 0, overview.currencyCode)}
-                    </div>
+            <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+              <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Historial de transferencias</h3>
+                    <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                      Usa el rango global, total acumulado y paginación inferior.
+                    </p>
+                  </div>
+                  <div className="rounded-full bg-[var(--color-surface)] px-3 py-1 text-sm text-[var(--color-on-surface-variant)]">
+                    Total: {formatCurrency(transferSummary?.totalTransferred ?? 0, overview.currencyCode)}
                   </div>
                 </div>
-                <div className="space-y-4 px-4 py-4">
-                  <LocalFilterControls
-                    range={transferFilter.range}
-                    active={transferFilter.active}
-                    onRangeChange={(range) => setTransferFilter((current) => ({ ...current, range }))}
-                    onApply={() => {
-                      setTransferFilter((current) => ({ ...current, active: true }));
-                      void loadTransfers(transferFilter.range, 1);
-                    }}
-                    onReset={() => {
-                      setTransferFilter({ active: false, range: copyRange(globalRange) });
-                      setTransfersOverride(null);
-                      setTransferState({ isLoading: false, error: "" });
-                    }}
-                  />
-                  {transferState.error ? (
-                    <InlineError message={transferState.error} onRetry={() => void loadTransfers(transferFilter.range, 1)} />
-                  ) : transferState.isLoading ? (
-                    <LoadingBox label="Cargando transferencias..." />
-                  ) : !transferSummary || transferSummary.items.length === 0 ? (
-                    <EmptyState
-                      title="No hay transferencias en este rango"
-                      description="Cuando registres movimientos entre tus cuentas, aparecerán aquí."
-                      className="py-10"
-                    />
-                  ) : (
-                    <>
-                      <div className="divide-y divide-[var(--color-outline-variant)]">
-                        {transferSummary.items.map((transfer) => (
-                          <div key={transfer.id} className="flex items-start justify-between gap-3 py-3">
-                            <div className="min-w-0">
-                              <p className="font-medium text-[var(--color-on-surface)]">{transfer.reason}</p>
-                              <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                                {transfer.sourceAccount.name} → {transfer.destinationAccount.name}
-                              </p>
-                              <p className="mt-1 text-xs uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
-                                {formatDate(transfer.occurredAt)}
-                              </p>
-                            </div>
-                            <p className="shrink-0 text-sm font-semibold text-[var(--color-on-surface)]">
-                              {formatCurrency(transfer.amount, overview.currencyCode)}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                      <PaginationControls
-                        page={transferSummary.pagination.page}
-                        totalPages={transferSummary.pagination.totalPages}
-                        totalItems={transferSummary.pagination.totalItems}
-                        onPageChange={(page) => {
-                          if (transferFilter.active) {
-                            void loadTransfers(transferFilter.range, page);
-                          } else if (overview) {
-                            void loadTransfers(globalRange, page);
-                            setTransferFilter((current) => ({ ...current, active: true, range: copyRange(globalRange) }));
-                          }
-                        }}
-                      />
-                    </>
-                  )}
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
-                <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
-                  <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Deudas pendientes</h3>
-                  <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                    Resumen de compromisos activos con saldo restante.
-                  </p>
-                </div>
-                {overview.debtSummary.items.length === 0 ? (
+              </div>
+              <div className="space-y-4 px-4 py-4">
+                {transferState.error ? (
+                  <InlineError message={transferState.error} onRetry={() => void loadTransfers(transferSummary?.pagination.page ?? 1)} />
+                ) : transferState.isLoading ? (
+                  <LoadingBox label="Cargando transferencias..." />
+                ) : !transferSummary || transferSummary.items.length === 0 ? (
                   <EmptyState
-                    title="No tienes deudas pendientes"
-                    description="Las obligaciones activas con saldo aparecerán aquí."
+                    title="No hay transferencias en este rango"
+                    description="Cuando registres movimientos entre tus cuentas, aparecerán aquí."
                     className="py-10"
                   />
                 ) : (
-                  <div className="divide-y divide-[var(--color-outline-variant)]">
-                    {overview.debtSummary.items.map((debt) => (
-                      <div key={debt.id} className="flex items-start justify-between gap-3 px-4 py-4">
-                        <div className="min-w-0">
-                          <p className="font-medium text-[var(--color-on-surface)]">{debt.name}</p>
-                          <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                            Días esperados: {debt.paymentDays.join(", ")}
+                  <>
+                    <div className="divide-y divide-[var(--color-outline-variant)]">
+                      {transferSummary.items.map((transfer) => (
+                        <div key={transfer.id} className="flex items-start justify-between gap-3 py-3">
+                          <div className="min-w-0">
+                            <p className="font-medium text-[var(--color-on-surface)]">{transfer.reason}</p>
+                            <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                              {transfer.sourceAccount.name} → {transfer.destinationAccount.name}
+                            </p>
+                            <p className="mt-1 text-xs uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
+                              {formatDate(transfer.occurredAt)}
+                            </p>
+                          </div>
+                          <p className="shrink-0 text-sm font-semibold text-[var(--color-on-surface)]">
+                            {formatCurrency(transfer.amount, overview.currencyCode)}
                           </p>
                         </div>
-                        <p className="text-sm font-semibold text-[var(--color-error)]">
-                          {formatCurrency(debt.remainingAmount, overview.currencyCode)}
+                      ))}
+                    </div>
+                    <PaginationControls
+                      page={transferSummary.pagination.page}
+                      totalPages={transferSummary.pagination.totalPages}
+                      totalItems={transferSummary.pagination.totalItems}
+                      onPageChange={(page) => void loadTransfers(page)}
+                    />
+                  </>
+                )}
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
+              <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+                <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Deudas pendientes</h3>
+                <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                  Resumen de compromisos activos con saldo restante.
+                </p>
+              </div>
+              {overview.debtSummary.items.length === 0 ? (
+                <EmptyState
+                  title="No tienes deudas pendientes"
+                  description="Las obligaciones activas con saldo aparecerán aquí."
+                  className="py-10"
+                />
+              ) : (
+                <div className="divide-y divide-[var(--color-outline-variant)]">
+                  {overview.debtSummary.items.map((debt) => (
+                    <div key={debt.id} className="flex items-start justify-between gap-3 px-4 py-4">
+                      <div className="min-w-0">
+                        <p className="font-medium text-[var(--color-on-surface)]">{debt.name}</p>
+                        <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                          Días esperados: {debt.paymentDays.join(", ")}
                         </p>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </section>
-            </div>
+                      <p className="text-sm font-semibold text-[var(--color-error)]">
+                        {formatCurrency(debt.remainingAmount, overview.currencyCode)}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
         </>
       )}
@@ -938,58 +785,6 @@ function InlineError({ message, onRetry }: { message: string; onRetry: () => voi
       <Button className="mt-3" variant="outline" onClick={onRetry}>
         Reintentar
       </Button>
-    </div>
-  );
-}
-
-function LocalFilterControls({
-  range,
-  active,
-  onRangeChange,
-  onApply,
-  onReset,
-}: {
-  range: DashboardRange;
-  active: boolean;
-  onRangeChange: (range: DashboardRange) => void;
-  onApply: () => void;
-  onReset: () => void;
-}) {
-  return (
-    <div className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="text-sm">
-          <span className="mb-2 block text-[var(--color-on-surface-variant)]">Desde</span>
-          <input
-            type="date"
-            value={range.startDate}
-            onChange={(event) => onRangeChange({ ...range, startDate: event.target.value })}
-            className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-3 py-2 text-[var(--color-on-surface)] outline-none"
-          />
-        </label>
-        <label className="text-sm">
-          <span className="mb-2 block text-[var(--color-on-surface-variant)]">Hasta</span>
-          <input
-            type="date"
-            value={range.endDate}
-            onChange={(event) => onRangeChange({ ...range, endDate: event.target.value })}
-            className="w-full rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-3 py-2 text-[var(--color-on-surface)] outline-none"
-          />
-        </label>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" onClick={onApply}>
-          Aplicar solo a este informe
-        </Button>
-        {active ? (
-          <Button variant="ghost" size="sm" onClick={onReset}>
-            Volver al filtro global
-          </Button>
-        ) : null}
-        <span className="text-xs text-[var(--color-on-surface-variant)]">
-          {active ? "Filtro local activo" : "Usando rango global"}
-        </span>
-      </div>
     </div>
   );
 }
