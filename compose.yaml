@@ -18,8 +18,11 @@ services:
       DB_NAME: ${DB_NAME:-expense_tracker}
       DB_USER: ${DB_USER:-expense_tracker}
       API_DOCS_ENABLED: ${API_DOCS_ENABLED:-false}
+      ATTACHMENTS_LOCAL_DIR: ${ATTACHMENTS_LOCAL_DIR:-/app/backend/storage/attachments}
     ports:
       - "127.0.0.1:${APP_PORT:-3101}:3000"
+    volumes:
+      - ${ATTACHMENTS_HOST_DIR:-/srv/apps/expense-tracker/shared/attachments}:${ATTACHMENTS_LOCAL_DIR:-/app/backend/storage/attachments}
     restart: unless-stopped
     networks:
       - expense_tracker_internal

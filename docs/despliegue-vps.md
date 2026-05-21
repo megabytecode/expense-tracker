@@ -23,6 +23,7 @@ VPS.
   current -> releases/<release-id>
   releases/
   shared/
+    attachments/
   tmp/
   logs/
   repo.git/
@@ -70,6 +71,8 @@ services:
     build: .
     env_file:
       - /srv/secrets/expense-tracker/app.env
+    volumes:
+      - /srv/apps/expense-tracker/shared/attachments:/app/backend/storage/attachments
     ports:
       - "127.0.0.1:3101:3000"
     networks:
@@ -84,6 +87,20 @@ networks:
 ```
 
 La aplicacion dentro del contenedor debe escuchar en `0.0.0.0`.
+
+Los comprobantes y archivos subidos no deben vivir dentro del filesystem
+efimero del contenedor. Deben persistirse en:
+
+```text
+/srv/apps/expense-tracker/shared/attachments
+```
+
+Variables recomendadas en `/srv/secrets/expense-tracker/app.env`:
+
+```env
+ATTACHMENTS_LOCAL_DIR=/app/backend/storage/attachments
+ATTACHMENTS_HOST_DIR=/srv/apps/expense-tracker/shared/attachments
+```
 
 ## Dockerfile
 
@@ -138,6 +155,9 @@ RELEASES_TO_KEEP='5'
 9. El VPS valida healthcheck.
 10. Si todo pasa, el VPS actualiza `current`.
 11. El VPS registra el despliegue en `deploy-history.log`.
+
+La limpieza de releases antiguos no debe borrar el release activo apuntado por
+`current`, aunque el reloj del servidor haya cambiado.
 
 GitHub Actions no debe construir imagenes productivas para este VPS.
 

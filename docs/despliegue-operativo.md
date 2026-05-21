@@ -13,6 +13,7 @@ productivo ocurre en el VPS con `docker compose build`.
   current -> releases/<release-id>
   releases/
   shared/
+    attachments/
   tmp/
   logs/
   repo.git/
@@ -37,6 +38,8 @@ Variables esperadas:
 ```env
 NODE_ENV=production
 API_DOCS_ENABLED=false
+ATTACHMENTS_LOCAL_DIR=/app/backend/storage/attachments
+ATTACHMENTS_HOST_DIR=/srv/apps/expense-tracker/shared/attachments
 DB_HOST=172.31.255.1
 DB_PORT=5432
 DB_NAME=expense_tracker
@@ -57,11 +60,23 @@ en un entorno controlado y volver a desactivarlo al terminar la revision.
 
 `compose.yaml` levanta solo la aplicacion. No incluye PostgreSQL.
 
+Los adjuntos deben persistirse fuera del contenedor en:
+
+```text
+/srv/apps/expense-tracker/shared/attachments
+```
+
 Comandos esperados en el VPS desde un release:
 
 ```bash
 docker compose --env-file /srv/secrets/expense-tracker/app.env -f compose.yaml build
 docker compose --env-file /srv/secrets/expense-tracker/app.env -f compose.yaml up -d --remove-orphans
+```
+
+El volumen esperado para comprobantes debe montar:
+
+```text
+/srv/apps/expense-tracker/shared/attachments -> /app/backend/storage/attachments
 ```
 
 El puerto se publica solo en loopback:
@@ -165,3 +180,6 @@ host. Debe levantar el release elegido con Compose, validar `/health`, actualiza
 `current` y registrar el evento en `deploy-history.log`.
 
 El rollback no revierte migraciones ni datos.
+
+La rotacion de releases antiguos debe respetar siempre el release activo
+apuntado por `current`, incluso si el reloj del servidor cambia de hora o zona.
