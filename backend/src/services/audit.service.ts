@@ -1,5 +1,17 @@
 import { prisma } from '../lib/prisma.js';
 
+function serializeAuditValue(value: unknown) {
+  return JSON.parse(
+    JSON.stringify(value, (_key, nestedValue) => {
+      if (typeof nestedValue === 'bigint') {
+        return nestedValue.toString();
+      }
+
+      return nestedValue;
+    }),
+  );
+}
+
 export class AuditService {
   static async log(
     tx: any, 
@@ -19,8 +31,8 @@ export class AuditService {
         entityType,
         entityId,
         action,
-        previousValues: previousValues ? JSON.parse(JSON.stringify(previousValues)) : null,
-        newValues: newValues ? JSON.parse(JSON.stringify(newValues)) : null
+        previousValues: previousValues ? serializeAuditValue(previousValues) : null,
+        newValues: newValues ? serializeAuditValue(newValues) : null
       }
     });
   }
