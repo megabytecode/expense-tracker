@@ -132,6 +132,30 @@ function getBudgetTone(percentage: number) {
   return "bg-[var(--color-error)]";
 }
 
+function getAllocationStatusCopy(difference: number) {
+  if (Math.abs(difference) < 0.01) {
+    return {
+      tone: "text-emerald-300",
+      badgeTone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+      label: "Distribución completa",
+    };
+  }
+
+  if (difference > 0) {
+    return {
+      tone: "text-amber-300",
+      badgeTone: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+      label: `Falta asignar $${formatAccountBalance(difference)}`,
+    };
+  }
+
+  return {
+    tone: "text-[var(--color-error-container)]",
+    badgeTone: "border-[var(--color-error)]/30 bg-[var(--color-error)]/10 text-[var(--color-error-container)]",
+    label: `Se excede por $${formatAccountBalance(Math.abs(difference))}`,
+  };
+}
+
 export function TransactionModal({
   isOpen,
   onClose,
@@ -385,280 +409,370 @@ export function TransactionModal({
   const primaryColumnClassName = supportsMultipleAllocations
     ? "space-y-4"
     : "space-y-4 lg:col-span-2";
+  const allocationStatus = getAllocationStatusCopy(remainingAmount);
+  const inputClassName = "h-11 w-full max-w-full rounded-xl border border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface-container-lowest)_88%,transparent)] px-3.5 text-sm text-[var(--color-on-surface)] focus-visible:ring-[var(--color-primary)]";
+  const labelClassName = "text-[0.82rem] font-medium tracking-[0.01em] text-[var(--color-on-surface-variant)]";
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={isEditing ? "Editar movimiento" : "Nuevo movimiento"}
-      className="sm:max-w-5xl"
+      subtitle={isEditing ? undefined : "Registra un gasto, ingreso, transferencia o ajuste"}
+      className="sm:max-w-[min(96vw,76rem)] sm:max-h-[90vh] sm:rounded-3xl"
+      headerClassName="sticky top-0 z-20 px-4 py-4 sm:px-6 sm:py-5 backdrop-blur"
+      bodyClassName="p-0 sm:max-h-[calc(90vh-88px)]"
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error && <div className="p-3 bg-error-container text-on-error-container rounded text-sm">{error}</div>}
+      <form onSubmit={handleSubmit} className="flex h-full max-h-[100dvh] flex-col">
+        <div className="flex-1 overflow-y-auto px-4 pb-5 pt-4 [overscroll-behavior:contain] sm:px-6 sm:pb-6 sm:pt-5">
+          {error && (
+            <div className="mb-4 rounded-2xl border border-[var(--color-error)]/30 bg-[var(--color-error)]/12 px-4 py-3 text-sm text-[var(--color-error-container)]">
+              {error}
+            </div>
+          )}
 
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
-          {(["expense", "income", "transfer", "manual_adjustment"] as const).map((modalType) => (
-            <button
-              key={modalType}
-              type="button"
-              disabled={isEditing}
-              onClick={() => { setType(modalType); resetForm(); }}
-              className={`cursor-pointer px-3 py-1.5 rounded-full text-sm font-medium whitespace-nowrap transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-                type === modalType 
-                  ? "bg-primary text-on-primary" 
-                  : "bg-surface-container text-on-surface-variant hover:bg-surface-container-high"
-              }`}
+          <section className="mb-4 space-y-3 rounded-[20px] border border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] p-3 sm:p-4">
+            <div className="space-y-1">
+              <h3 className="text-sm font-semibold text-[var(--color-on-surface)]">Tipo de movimiento</h3>
+              <p className="text-xs text-[var(--color-on-surface-variant)]">
+                Elige el flujo que quieres registrar.
+              </p>
+            </div>
+
+            <div
+              className="flex gap-2 overflow-x-auto rounded-2xl bg-[var(--color-surface-container-low)] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              aria-label="Selector de tipo de movimiento"
+              role="tablist"
             >
-              {modalType === "expense" ? "Gasto" : modalType === "income" ? "Ingreso" : modalType === "transfer" ? "Transferencia" : "Ajuste Manual"}
-            </button>
-          ))}
-        </div>
+              {(["expense", "income", "transfer", "manual_adjustment"] as const).map((modalType) => {
+                const isActive = type === modalType;
+                return (
+                  <button
+                    key={modalType}
+                    type="button"
+                    role="tab"
+                    aria-selected={isActive}
+                    disabled={isEditing}
+                    onClick={() => { setType(modalType); resetForm(); }}
+                    className={`min-h-11 shrink-0 rounded-[14px] px-4 py-2 text-sm font-medium whitespace-nowrap transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isActive
+                        ? "bg-[var(--color-primary)] text-[var(--color-on-primary)] shadow-[0_8px_18px_rgba(0,0,0,0.18)]"
+                        : "text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container-high)] hover:text-[var(--color-on-surface)]"
+                    }`}
+                  >
+                    {modalType === "expense" ? "Gasto" : modalType === "income" ? "Ingreso" : modalType === "transfer" ? "Transferencia" : "Ajuste manual"}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
 
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.85fr)] lg:items-start">
-          <div className={primaryColumnClassName}>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className={type === "transfer" ? "md:col-span-2" : undefined}>
-                <Input 
-                  label={type === "transfer" ? "Motivo" : "Descripción"} 
-                  value={description} 
-                  onChange={e => setDescription(e.target.value)} 
-                  required 
-                />
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)] lg:items-start">
+            <div className={primaryColumnClassName}>
+              <section className="space-y-4 rounded-[22px] border border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] p-4 sm:p-5">
+              <div className="space-y-1">
+                <h3 className="text-base font-semibold text-[var(--color-on-surface)]">Datos principales</h3>
+                <p className="text-sm text-[var(--color-on-surface-variant)]">
+                  Completa la información base del movimiento.
+                </p>
               </div>
 
-              <Input 
-                label="Monto" 
-                type="number" 
-                step="0.01"
-                value={amount} 
-                onChange={e => updateAmount(e.target.value)} 
-                required 
-              />
-
-              <Input 
-                label="Fecha" 
-                type="date"
-                value={occurredAt} 
-                onChange={e => setOccurredAt(e.target.value)} 
-                required 
-              />
-
-              {type !== "transfer" && type !== "manual_adjustment" && (
-                <div className="md:col-span-2">
-                  <Select 
-                    label="Categoría" 
-                    value={categoryId} 
-                    onChange={e => {
-                      setCategoryId(e.target.value);
-                      setDebtId("");
-                    }}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className={type === "transfer" ? "md:col-span-2" : undefined}>
+                  <Input
+                    label={type === "transfer" ? "Motivo" : "Descripción"}
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
                     required
+                    className={inputClassName}
+                  />
+                </div>
+
+                <label className="block min-w-0 space-y-1.5">
+                  <span className={labelClassName}>Monto</span>
+                  <Input
+                    label=""
+                    type="number"
+                    step="0.01"
+                    value={amount}
+                    onChange={e => updateAmount(e.target.value)}
+                    required
+                    className={`${inputClassName} h-12 text-base font-semibold sm:text-lg`}
+                  />
+                </label>
+
+                <Input
+                  label="Fecha"
+                  type="date"
+                  value={occurredAt}
+                  onChange={e => setOccurredAt(e.target.value)}
+                  required
+                  className={inputClassName}
+                />
+
+                {type !== "transfer" && type !== "manual_adjustment" && (
+                  <div className="md:col-span-2">
+                    <Select
+                      label="Categoría"
+                      value={categoryId}
+                      onChange={e => {
+                        setCategoryId(e.target.value);
+                        setDebtId("");
+                      }}
+                      required
+                      className={inputClassName}
+                    >
+                      <option value="">Seleccione una categoría</option>
+                      {filteredCategories.map(cat => (
+                        <option key={cat.id} value={cat.id}>{cat.name}</option>
+                      ))}
+                    </Select>
+                  </div>
+                )}
+              </div>
+
+              {type !== "transfer" && !supportsMultipleAllocations && (
+                <Select
+                  label="Cuenta"
+                  value={accountId}
+                  onChange={e => setAccountId(e.target.value)}
+                  required
+                  className={inputClassName}
+                >
+                  <option value="">Seleccione una cuenta</option>
+                  {accounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
+                  ))}
+                </Select>
+              )}
+
+              {type === "transfer" && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Select
+                    label="Cuenta origen"
+                    value={accountId}
+                    onChange={e => setAccountId(e.target.value)}
+                    required
+                    className={inputClassName}
                   >
-                    <option value="">Seleccione una categoría</option>
-                    {filteredCategories.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    <option value="">Seleccione origen</option>
+                    {accounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
+                    ))}
+                  </Select>
+                  <Select
+                    label="Cuenta destino"
+                    value={destinationAccountId}
+                    onChange={e => setDestinationAccountId(e.target.value)}
+                    required
+                    className={inputClassName}
+                  >
+                    <option value="">Seleccione destino</option>
+                    {accounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
                     ))}
                   </Select>
                 </div>
               )}
+
+              {type !== "transfer" && type !== "manual_adjustment" && (
+                <>
+                  {selectedMonthlyPlan ? (
+                    <div className="space-y-3 rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3 text-xs text-[var(--color-on-surface-variant)]">
+                        <span>
+                          Forecast mensual: <strong className="text-[var(--color-on-surface)]">${formatAccountBalance(selectedMonthlyPlan.forecastAmount)}</strong>
+                        </span>
+                        <span>
+                          Proyectado: <strong className="text-[var(--color-on-surface)]">${formatAccountBalance(projectedCategorySpend)}</strong>
+                        </span>
+                      </div>
+                      <div className="relative h-3 overflow-hidden rounded-full bg-[var(--color-surface-container-high)]">
+                        <div
+                          className={`h-full rounded-full transition-all ${projectedExecutionPercentage > 100 ? "bg-amber-500" : getBudgetTone(projectedExecutionPercentage)}`}
+                          style={{ width: `${Math.min(projectedExecutionPercentage, 100)}%` }}
+                        />
+                        {projectedExecutionPercentage > 100 ? (
+                          <div
+                            className="absolute right-0 top-0 h-full bg-[var(--color-error)]"
+                            style={{ width: `${Math.min(overflowPercentage, 100)}%` }}
+                          />
+                        ) : null}
+                      </div>
+                      <p className={`text-xs font-medium ${projectedExecutionPercentage > 100 ? "text-[var(--color-error)]" : "text-[var(--color-on-surface-variant)]"}`}>
+                        {selectedMonthlyPlan.forecastAmount <= 0
+                          ? "Esta categoría no tiene forecast mensual configurado."
+                          : `${projectedExecutionPercentage.toFixed(0)}% del forecast mensual con este movimiento.`}
+                      </p>
+                    </div>
+                  ) : categoryId ? (
+                    <p className="text-xs text-[var(--color-on-surface-variant)]">
+                      Esta categoría todavía no tiene forecast configurado en el planner mensual.
+                    </p>
+                  ) : null}
+
+                  {isDebtExpense && (
+                    <div className="space-y-3 rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] p-4">
+                      <Select
+                        label="Deuda asociada"
+                        value={debtId}
+                        onChange={(event) => setDebtId(event.target.value)}
+                        required
+                        className={inputClassName}
+                      >
+                        <option value="">Seleccione una deuda</option>
+                        {availableDebts.map((debt) => (
+                          <option key={debt.id} value={debt.id}>
+                            {debt.name} • Pendiente ${new Intl.NumberFormat().format(debt.remainingAmount)}
+                          </option>
+                        ))}
+                      </Select>
+
+                      {selectedDebt ? (
+                        <p className="text-xs text-[var(--color-on-surface-variant)]">
+                          Pendiente actual: <span className="font-medium text-[var(--color-error)]">
+                            ${new Intl.NumberFormat().format(selectedDebt.remainingAmount)}
+                          </span>
+                        </p>
+                      ) : (
+                        <p className="text-xs text-[var(--color-on-surface-variant)]">
+                          Solo se muestran deudas activas con saldo pendiente. Si editas un pago existente, también verás su deuda vinculada.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+              </section>
             </div>
 
-            {type !== "transfer" && !supportsMultipleAllocations && (
-              <Select 
-                label="Cuenta" 
-                value={accountId} 
-                onChange={e => setAccountId(e.target.value)}
-                required
-              >
-                <option value="">Seleccione una cuenta</option>
-                {accounts.map(acc => (
-                  <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
-                ))}
-              </Select>
-            )}
-
-            {type === "transfer" && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <Select 
-                  label="Cuenta Origen" 
-                  value={accountId} 
-                  onChange={e => setAccountId(e.target.value)}
-                  required
-                >
-                  <option value="">Seleccione origen</option>
-                  {accounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
-                  ))}
-                </Select>
-                <Select 
-                  label="Cuenta Destino" 
-                  value={destinationAccountId} 
-                  onChange={e => setDestinationAccountId(e.target.value)}
-                  required
-                >
-                  <option value="">Seleccione destino</option>
-                  {accounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
-                  ))}
-                </Select>
-              </div>
-            )}
-
-            {type !== "transfer" && type !== "manual_adjustment" && (
-              <>
-                {selectedMonthlyPlan ? (
-                  <div className="space-y-2 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
-                    <div className="flex items-start justify-between gap-3 text-xs text-[var(--color-on-surface-variant)]">
-                      <span>
-                        Forecast mensual: <strong className="text-[var(--color-on-surface)]">${formatAccountBalance(selectedMonthlyPlan.forecastAmount)}</strong>
-                      </span>
-                      <span>
-                        Proyectado: <strong className="text-[var(--color-on-surface)]">${formatAccountBalance(projectedCategorySpend)}</strong>
-                      </span>
-                    </div>
-                    <div className="relative h-3 overflow-hidden rounded-full bg-[var(--color-surface-container-high)]">
-                      <div
-                        className={`h-full rounded-full transition-all ${projectedExecutionPercentage > 100 ? "bg-amber-500" : getBudgetTone(projectedExecutionPercentage)}`}
-                        style={{ width: `${Math.min(projectedExecutionPercentage, 100)}%` }}
-                      />
-                      {projectedExecutionPercentage > 100 ? (
-                        <div
-                          className="absolute right-0 top-0 h-full bg-[var(--color-error)]"
-                          style={{ width: `${Math.min(overflowPercentage, 100)}%` }}
-                        />
-                      ) : null}
-                    </div>
-                    <p className={`text-xs font-medium ${projectedExecutionPercentage > 100 ? "text-[var(--color-error)]" : "text-[var(--color-on-surface-variant)]"}`}>
-                      {selectedMonthlyPlan.forecastAmount <= 0
-                        ? "Esta categoría no tiene forecast mensual configurado."
-                        : `${projectedExecutionPercentage.toFixed(0)}% del forecast mensual con este movimiento.`}
-                    </p>
-                  </div>
-                ) : categoryId ? (
-                  <p className="text-xs text-[var(--color-on-surface-variant)]">
-                    Esta categoría todavía no tiene forecast configurado en el planner mensual.
-                  </p>
-                ) : null}
-
-                {isDebtExpense && (
-                  <div className="space-y-2 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
-                    <Select
-                      label="Deuda asociada"
-                      value={debtId}
-                      onChange={(event) => setDebtId(event.target.value)}
-                      required
-                    >
-                      <option value="">Seleccione una deuda</option>
-                      {availableDebts.map((debt) => (
-                        <option key={debt.id} value={debt.id}>
-                          {debt.name} • Pendiente ${new Intl.NumberFormat().format(debt.remainingAmount)}
-                        </option>
-                      ))}
-                    </Select>
-
-                    {selectedDebt ? (
-                      <p className="text-xs text-[var(--color-on-surface-variant)]">
-                        Pendiente actual: <span className="font-medium text-[var(--color-error)]">
-                          ${new Intl.NumberFormat().format(selectedDebt.remainingAmount)}
-                        </span>
-                      </p>
-                    ) : (
-                      <p className="text-xs text-[var(--color-on-surface-variant)]">
-                        Solo se muestran deudas activas con saldo pendiente. Si editas un pago existente, también verás su deuda vinculada.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {(supportsMultipleAllocations || type === "transfer" || selectedFiles.length > 0 || !supportsMultipleAllocations) ? (
-            <div className="space-y-4">
-              {supportsMultipleAllocations && (
-                <div className="space-y-3 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
-                  <div className="flex items-center justify-between gap-3">
+            {(supportsMultipleAllocations || type === "transfer" || selectedFiles.length > 0 || !supportsMultipleAllocations) ? (
+              <div className="space-y-4">
+                {supportsMultipleAllocations && (
+                  <section className="space-y-4 rounded-[22px] border border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] p-4 sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-semibold text-[var(--color-on-surface)]">Distribución por cuentas</h3>
-                      <p className="text-xs text-[var(--color-on-surface-variant)]">
+                      <h3 className="text-base font-semibold text-[var(--color-on-surface)]">Distribución por cuentas</h3>
+                      <p className="text-sm text-[var(--color-on-surface-variant)]">
                         El total asignado debe coincidir con el monto del movimiento.
                       </p>
                     </div>
                     <Button
                       type="button"
-                      variant="ghost"
-                      size="icon"
+                      variant="outline"
                       onClick={addAllocation}
                       aria-label="Agregar cuenta"
-                      className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                      className="h-10 rounded-xl border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] px-3 text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container-high)] sm:min-w-[9.5rem]"
                     >
-                      <Plus className="h-5 w-5" />
+                      <Plus className="h-4 w-4 sm:mr-1.5" />
+                      <span className="hidden sm:inline">Agregar cuenta</span>
+                      <span className="sm:hidden">Agregar</span>
                     </Button>
                   </div>
 
                   <div className="space-y-3">
                     {allocationRows.map((row, index) => (
-                      <div key={row.clientId} className="grid gap-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] p-3 sm:grid-cols-[1fr_140px_auto]">
-                        <Select
-                          label={`Cuenta ${index + 1}`}
-                          value={row.accountId}
-                          onChange={(event) => updateAllocation(row.clientId, { accountId: event.target.value })}
-                          required
-                        >
-                          <option value="">Seleccione una cuenta</option>
-                          {accounts.map(acc => (
-                            <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
-                          ))}
-                        </Select>
+                      <div key={row.clientId} className="rounded-2xl bg-[var(--color-surface-container-low)] p-3 sm:p-4">
+                        <div className="mb-3 flex items-center justify-between gap-3 sm:hidden">
+                          <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
+                            Cuenta {index + 1}
+                          </p>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeAllocation(row.clientId)}
+                            disabled={allocationRows.length === 1}
+                            aria-label={`Quitar cuenta ${index + 1}`}
+                            className="h-9 w-9 rounded-xl text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container-high)] hover:text-[var(--color-error)]"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
 
-                        <Input
-                          label="Monto"
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          value={row.amount}
-                          onChange={(event) => updateAllocation(row.clientId, { amount: event.target.value })}
-                          required
-                        />
+                        <div className="grid gap-3 sm:grid-cols-[minmax(0,1.65fr)_minmax(0,0.95fr)_auto] sm:items-end">
+                          <Select
+                            label={`Cuenta ${index + 1}`}
+                            value={row.accountId}
+                            onChange={(event) => updateAllocation(row.clientId, { accountId: event.target.value })}
+                            required
+                            className={inputClassName}
+                          >
+                            <option value="">Seleccione una cuenta</option>
+                            {accounts.map(acc => (
+                              <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
+                            ))}
+                          </Select>
 
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => removeAllocation(row.clientId)}
-                          disabled={allocationRows.length === 1}
-                          aria-label="Quitar cuenta"
-                          className="self-end text-[var(--color-error)]"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                          <Input
+                            label="Monto"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            value={row.amount}
+                            onChange={(event) => updateAllocation(row.clientId, { amount: event.target.value })}
+                            required
+                            className={inputClassName}
+                          />
+
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeAllocation(row.clientId)}
+                            disabled={allocationRows.length === 1}
+                            aria-label={`Quitar cuenta ${index + 1}`}
+                            className="hidden h-11 w-11 rounded-xl text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container-high)] hover:text-[var(--color-error)] sm:inline-flex"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="flex flex-wrap justify-between gap-2 text-xs text-[var(--color-on-surface-variant)]">
-                    <span>Asignado: ${formatAccountBalance(assignedAmount)}</span>
-                    <span className={Math.abs(remainingAmount) < 0.01 ? "text-emerald-500" : "text-[var(--color-error)]"}>
-                      Diferencia: ${formatAccountBalance(remainingAmount)}
+                  <div className="grid gap-3 rounded-2xl border border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface-container-low)_78%,transparent)] p-4 sm:grid-cols-[1fr_auto] sm:items-center">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-2xl bg-[var(--color-surface-container-lowest)] px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">Asignado</p>
+                        <p className="mt-1 text-base font-semibold text-[var(--color-on-surface)]">
+                          ${formatAccountBalance(assignedAmount)}
+                        </p>
+                      </div>
+                      <div className="rounded-2xl bg-[var(--color-surface-container-lowest)] px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">Diferencia</p>
+                        <p className={`mt-1 text-base font-semibold ${allocationStatus.tone}`}>
+                          ${formatAccountBalance(Math.abs(remainingAmount))}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`inline-flex min-h-11 items-center rounded-full border px-4 text-sm font-medium ${allocationStatus.badgeTone}`}>
+                      {allocationStatus.label}
                     </span>
                   </div>
-                </div>
-              )}
+                  </section>
+                )}
 
-              <div className="space-y-3 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-on-surface)]">
+                <section className="space-y-4 rounded-[22px] border border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] p-4 sm:p-5">
+                <div className="space-y-4 rounded-2xl bg-[var(--color-surface-container-low)] p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--color-surface-container-high)] text-[var(--color-on-surface)]">
                       <Paperclip className="h-4 w-4" />
-                      Comprobantes
                     </div>
-                    <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
-                      PDF, Word, Excel o imágenes. Máximo 50 MB por archivo.
-                    </p>
+                    <div className="min-w-0 space-y-1">
+                      <div className="text-base font-semibold text-[var(--color-on-surface)]">Comprobantes</div>
+                      <p className="text-sm text-[var(--color-on-surface-variant)]">
+                        PDF, Word, Excel o imágenes
+                      </p>
+                      <p className="text-xs text-[var(--color-on-surface-variant)]">
+                        Máximo 50 MB por archivo
+                      </p>
+                    </div>
                   </div>
-                  <label className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-emerald-50 text-emerald-600 transition-colors hover:bg-emerald-100 hover:text-emerald-700">
+
+                  <label className="inline-flex min-h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-high)] px-4 py-3 text-sm font-medium text-[var(--color-on-surface)] transition-colors hover:bg-[var(--color-surface-container)]">
                     <Paperclip className="h-4 w-4" />
-                    <span className="sr-only">Adjuntar comprobantes</span>
+                    Adjuntar archivo
                     <input
                       type="file"
                       multiple
@@ -674,7 +788,7 @@ export function TransactionModal({
                     {selectedFiles.map((file, index) => (
                       <div
                         key={`${file.name}-${file.lastModified}`}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-3 py-2"
+                        className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--color-surface-container-low)] px-3 py-3"
                       >
                         <div className="flex min-w-0 items-center gap-2">
                           <FileText className="h-4 w-4 shrink-0 text-[var(--color-on-surface-variant)]" />
@@ -689,6 +803,7 @@ export function TransactionModal({
                           size="icon"
                           onClick={() => removeSelectedFile(index)}
                           aria-label="Quitar comprobante"
+                          className="h-9 w-9 rounded-xl text-[var(--color-on-surface-variant)] hover:bg-[var(--color-surface-container-high)]"
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -696,16 +811,21 @@ export function TransactionModal({
                     ))}
                   </div>
                 ) : null}
+                </section>
               </div>
-            </div>
-          ) : null}
+            ) : null}
+          </div>
         </div>
 
-        <div className="flex justify-end pt-4">
-          <Button type="button" variant="outline" onClick={onClose} className="mr-2">Cancelar</Button>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? "Guardando..." : "Guardar"}
-          </Button>
+        <div className="sticky bottom-0 z-20 border-t border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] px-4 py-4 backdrop-blur sm:px-6">
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <Button type="button" variant="outline" onClick={onClose} className="h-11 rounded-xl sm:min-w-[8rem]">
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isLoading} className="h-11 rounded-xl bg-[var(--color-primary)] px-5 text-[var(--color-on-primary)] hover:bg-[color-mix(in_srgb,var(--color-primary)_88%,black)] sm:min-w-[9rem]">
+              {isLoading ? "Guardando..." : "Guardar"}
+            </Button>
+          </div>
         </div>
       </form>
     </Modal>

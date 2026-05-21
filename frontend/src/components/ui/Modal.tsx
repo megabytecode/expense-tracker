@@ -16,10 +16,23 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   className?: string;
+  subtitle?: string;
+  headerClassName?: string;
+  bodyClassName?: string;
 }
 
-export function Modal({ isOpen, onClose, title, children, className }: ModalProps) {
+export function Modal({
+  isOpen,
+  onClose,
+  title,
+  children,
+  className,
+  subtitle,
+  headerClassName,
+  bodyClassName,
+}: ModalProps) {
   const titleId = React.useId();
+  const descriptionId = React.useId();
 
   React.useEffect(() => {
     if (!isOpen) {
@@ -64,14 +77,32 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        aria-describedby={subtitle ? descriptionId : undefined}
       >
-        <div className="flex items-center justify-between p-4 border-b border-[var(--color-outline-variant)]">
-          <h2 id={titleId} className="text-lg font-semibold text-[var(--color-on-surface)]">{title}</h2>
+        <div
+          className={cn(
+            "flex items-start justify-between gap-4 border-b border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] p-4",
+            headerClassName,
+          )}
+        >
+          <div className="min-w-0 space-y-1">
+            <h2 id={titleId} className="text-lg font-semibold text-[var(--color-on-surface)]">{title}</h2>
+            {subtitle ? (
+              <p id={descriptionId} className="text-sm text-[var(--color-on-surface-variant)]">
+                {subtitle}
+              </p>
+            ) : null}
+          </div>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Cerrar">
             <X className="h-5 w-5" />
           </Button>
         </div>
-        <div className="h-[calc(100dvh-65px)] overflow-y-auto p-4 [overscroll-behavior:contain] sm:h-auto sm:max-h-[calc(92vh-65px)]">
+        <div
+          className={cn(
+            "h-[calc(100dvh-65px)] overflow-y-auto p-4 [overscroll-behavior:contain] sm:h-auto sm:max-h-[calc(92vh-65px)]",
+            bodyClassName,
+          )}
+        >
           {children}
         </div>
       </div>
