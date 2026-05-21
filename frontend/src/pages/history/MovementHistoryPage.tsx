@@ -139,11 +139,13 @@ export function MovementHistoryPage() {
   const [editingTransfer, setEditingTransfer] = useState<TransferItem | null>(null);
   const [loadingDetailId, setLoadingDetailId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [listError, setListError] = useState("");
+  const [actionError, setActionError] = useState("");
 
   const loadMovements = useCallback(async (targetPage = page, targetFilter = filter) => {
     setIsLoading(true);
-    setError("");
+    setListError("");
+    setActionError("");
 
     try {
       const shouldLoadTransactions = targetFilter !== "transfer";
@@ -159,7 +161,7 @@ export function MovementHistoryPage() {
       setTransactions(transactionData);
       setTransfers(transferData);
     } catch (loadError) {
-      setError(getErrorMessage(loadError));
+      setListError(getErrorMessage(loadError));
     } finally {
       setIsLoading(false);
     }
@@ -217,12 +219,13 @@ export function MovementHistoryPage() {
     }
 
     setLoadingDetailId(item.id);
+    setActionError("");
     try {
       const data = await fetchApi(`/transactions/${item.id}`);
       setDetail(data);
       setDetailOpen(true);
     } catch (detailError) {
-      setError(getErrorMessage(detailError));
+      setActionError(getErrorMessage(detailError));
     } finally {
       setLoadingDetailId("");
     }
@@ -232,13 +235,14 @@ export function MovementHistoryPage() {
     const label = isTransferItem(item) ? "transferencia" : "movimiento";
     if (!confirm(`¿Eliminar esta ${label}?`)) return;
 
+    setActionError("");
     try {
       await fetchApi(isTransferItem(item) ? `/transfers/${item.id}` : `/transactions/${item.id}`, {
         method: "DELETE",
       });
       await loadMovements(page, filter);
     } catch (deleteError) {
-      setError(getErrorMessage(deleteError));
+      setActionError(getErrorMessage(deleteError));
     }
   }
 
@@ -258,6 +262,7 @@ export function MovementHistoryPage() {
               key={item}
               type="button"
               onClick={() => {
+                setActionError("");
                 setFilter(item);
                 setPage(1);
               }}
@@ -273,10 +278,28 @@ export function MovementHistoryPage() {
         </div>
       </div>
 
+      {actionError ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-[var(--color-error)]/30 bg-[var(--color-error-container)] px-4 py-3 text-sm text-[var(--color-on-error-container)] sm:flex-row sm:items-center sm:justify-between">
+          <span>{actionError}</span>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setActionError("")}>
+            Cerrar
+          </Button>
+        </div>
+      ) : null}
+
+      {listError && items.length > 0 ? (
+        <div className="flex flex-col gap-3 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] px-4 py-3 text-sm text-[var(--color-on-surface-variant)] sm:flex-row sm:items-center sm:justify-between">
+          <span>{listError}</span>
+          <Button type="button" variant="outline" size="sm" onClick={() => void loadMovements(page, filter)}>
+            Reintentar
+          </Button>
+        </div>
+      ) : null}
+
       {isLoading ? (
         <LoadingState title="Cargando movimientos..." description="Estamos organizando tus registros recientes." />
-      ) : error ? (
-        <ErrorState description={error} action={<Button onClick={() => void loadMovements(page, filter)}>Reintentar</Button>} />
+      ) : listError && items.length === 0 ? (
+        <ErrorState description={listError} action={<Button onClick={() => void loadMovements(page, filter)}>Reintentar</Button>} />
       ) : items.length === 0 ? (
         <EmptyState
           title="No hay movimientos para mostrar"
@@ -362,6 +385,7 @@ export function MovementHistoryPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => {
+                            setActionError("");
                             if (isTransferItem(item)) {
                               setEditingTransfer(item.source as TransferItem);
                             } else {
