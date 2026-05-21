@@ -382,12 +382,16 @@ export function TransactionModal({
   };
 
   const filteredCategories = categories.filter(c => type === 'expense' ? c.type === 'expense' : c.type === 'income');
+  const primaryColumnClassName = supportsMultipleAllocations
+    ? "space-y-4"
+    : "space-y-4 lg:col-span-2";
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
       title={isEditing ? "Editar movimiento" : "Nuevo movimiento"}
+      className="sm:max-w-5xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && <div className="p-3 bg-error-container text-on-error-container rounded text-sm">{error}</div>}
@@ -410,265 +414,289 @@ export function TransactionModal({
           ))}
         </div>
 
-        <Input 
-          label={type === "transfer" ? "Motivo" : "Descripción"} 
-          value={description} 
-          onChange={e => setDescription(e.target.value)} 
-          required 
-        />
-
-        <Input 
-          label="Monto" 
-          type="number" 
-          step="0.01"
-          value={amount} 
-          onChange={e => updateAmount(e.target.value)} 
-          required 
-        />
-
-        <Input 
-          label="Fecha" 
-          type="date"
-          value={occurredAt} 
-          onChange={e => setOccurredAt(e.target.value)} 
-          required 
-        />
-
-        {supportsMultipleAllocations && (
-          <div className="space-y-3 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-[var(--color-on-surface)]">Distribución por cuentas</h3>
-                <p className="text-xs text-[var(--color-on-surface-variant)]">
-                  El total asignado debe coincidir con el monto del movimiento.
-                </p>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.85fr)] lg:items-start">
+          <div className={primaryColumnClassName}>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className={type === "transfer" ? "md:col-span-2" : undefined}>
+                <Input 
+                  label={type === "transfer" ? "Motivo" : "Descripción"} 
+                  value={description} 
+                  onChange={e => setDescription(e.target.value)} 
+                  required 
+                />
               </div>
-              <Button type="button" variant="outline" size="sm" onClick={addAllocation}>
-                <Plus className="mr-2 h-4 w-4" /> Cuenta
-              </Button>
-            </div>
 
-            <div className="space-y-3">
-              {allocationRows.map((row, index) => (
-                <div key={row.clientId} className="grid gap-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] p-3 sm:grid-cols-[1fr_140px_auto]">
-                  <Select
-                    label={`Cuenta ${index + 1}`}
-                    value={row.accountId}
-                    onChange={(event) => updateAllocation(row.clientId, { accountId: event.target.value })}
+              <Input 
+                label="Monto" 
+                type="number" 
+                step="0.01"
+                value={amount} 
+                onChange={e => updateAmount(e.target.value)} 
+                required 
+              />
+
+              <Input 
+                label="Fecha" 
+                type="date"
+                value={occurredAt} 
+                onChange={e => setOccurredAt(e.target.value)} 
+                required 
+              />
+
+              {type !== "transfer" && type !== "manual_adjustment" && (
+                <div className="md:col-span-2">
+                  <Select 
+                    label="Categoría" 
+                    value={categoryId} 
+                    onChange={e => {
+                      setCategoryId(e.target.value);
+                      setDebtId("");
+                    }}
                     required
                   >
-                    <option value="">Seleccione una cuenta</option>
-                    {accounts.map(acc => (
-                      <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
+                    <option value="">Seleccione una categoría</option>
+                    {filteredCategories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
                     ))}
                   </Select>
-
-                  <Input
-                    label="Monto"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    value={row.amount}
-                    onChange={(event) => updateAllocation(row.clientId, { amount: event.target.value })}
-                    required
-                  />
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeAllocation(row.clientId)}
-                    disabled={allocationRows.length === 1}
-                    aria-label="Quitar cuenta"
-                    className="self-end text-[var(--color-error)]"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
                 </div>
-              ))}
+              )}
             </div>
 
-            <div className="flex flex-wrap justify-between gap-2 text-xs text-[var(--color-on-surface-variant)]">
-              <span>Asignado: ${formatAccountBalance(assignedAmount)}</span>
-              <span className={Math.abs(remainingAmount) < 0.01 ? "text-emerald-400" : "text-[var(--color-error)]"}>
-                Diferencia: ${formatAccountBalance(remainingAmount)}
-              </span>
-            </div>
-          </div>
-        )}
+            {type !== "transfer" && !supportsMultipleAllocations && (
+              <Select 
+                label="Cuenta" 
+                value={accountId} 
+                onChange={e => setAccountId(e.target.value)}
+                required
+              >
+                <option value="">Seleccione una cuenta</option>
+                {accounts.map(acc => (
+                  <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
+                ))}
+              </Select>
+            )}
 
-        {type !== "transfer" && !supportsMultipleAllocations && (
-          <Select 
-            label="Cuenta" 
-            value={accountId} 
-            onChange={e => setAccountId(e.target.value)}
-            required
-          >
-            <option value="">Seleccione una cuenta</option>
-            {accounts.map(acc => (
-              <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
-            ))}
-          </Select>
-        )}
-
-        {type === "transfer" && (
-          <div className="grid grid-cols-2 gap-4">
-            <Select 
-              label="Cuenta Origen" 
-              value={accountId} 
-              onChange={e => setAccountId(e.target.value)}
-              required
-            >
-              <option value="">Seleccione origen</option>
-              {accounts.map(acc => (
-                <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
-              ))}
-            </Select>
-            <Select 
-              label="Cuenta Destino" 
-              value={destinationAccountId} 
-              onChange={e => setDestinationAccountId(e.target.value)}
-              required
-            >
-              <option value="">Seleccione destino</option>
-              {accounts.map(acc => (
-                <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
-              ))}
-            </Select>
-          </div>
-        )}
-
-        {type !== "transfer" && type !== "manual_adjustment" && (
-          <>
-            <Select 
-              label="Categoría" 
-              value={categoryId} 
-              onChange={e => {
-                setCategoryId(e.target.value);
-                setDebtId("");
-              }}
-              required
-            >
-              <option value="">Seleccione una categoría</option>
-              {filteredCategories.map(cat => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </Select>
-
-            {selectedMonthlyPlan ? (
-              <div className="space-y-2 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
-                <div className="flex items-start justify-between gap-3 text-xs text-[var(--color-on-surface-variant)]">
-                  <span>
-                    Forecast mensual: <strong className="text-[var(--color-on-surface)]">${formatAccountBalance(selectedMonthlyPlan.forecastAmount)}</strong>
-                  </span>
-                  <span>
-                    Proyectado: <strong className="text-[var(--color-on-surface)]">${formatAccountBalance(projectedCategorySpend)}</strong>
-                  </span>
-                </div>
-                <div className="relative h-3 overflow-hidden rounded-full bg-[var(--color-surface-container-high)]">
-                  <div
-                    className={`h-full rounded-full transition-all ${projectedExecutionPercentage > 100 ? "bg-amber-500" : getBudgetTone(projectedExecutionPercentage)}`}
-                    style={{ width: `${Math.min(projectedExecutionPercentage, 100)}%` }}
-                  />
-                  {projectedExecutionPercentage > 100 ? (
-                    <div
-                      className="absolute right-0 top-0 h-full bg-[var(--color-error)]"
-                      style={{ width: `${Math.min(overflowPercentage, 100)}%` }}
-                    />
-                  ) : null}
-                </div>
-                <p className={`text-xs font-medium ${projectedExecutionPercentage > 100 ? "text-[var(--color-error)]" : "text-[var(--color-on-surface-variant)]"}`}>
-                  {selectedMonthlyPlan.forecastAmount <= 0
-                    ? "Esta categoría no tiene forecast mensual configurado."
-                    : `${projectedExecutionPercentage.toFixed(0)}% del forecast mensual con este movimiento.`}
-                </p>
-              </div>
-            ) : categoryId ? (
-              <p className="text-xs text-[var(--color-on-surface-variant)]">
-                Esta categoría todavía no tiene forecast configurado en el planner mensual.
-              </p>
-            ) : null}
-
-            {isDebtExpense && (
-              <div className="space-y-2 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
-                <Select
-                  label="Deuda asociada"
-                  value={debtId}
-                  onChange={(event) => setDebtId(event.target.value)}
+            {type === "transfer" && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <Select 
+                  label="Cuenta Origen" 
+                  value={accountId} 
+                  onChange={e => setAccountId(e.target.value)}
                   required
                 >
-                  <option value="">Seleccione una deuda</option>
-                  {availableDebts.map((debt) => (
-                    <option key={debt.id} value={debt.id}>
-                      {debt.name} • Pendiente ${new Intl.NumberFormat().format(debt.remainingAmount)}
-                    </option>
+                  <option value="">Seleccione origen</option>
+                  {accounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
                   ))}
                 </Select>
-
-                {selectedDebt ? (
-                  <p className="text-xs text-[var(--color-on-surface-variant)]">
-                    Pendiente actual: <span className="font-medium text-[var(--color-error)]">
-                      ${new Intl.NumberFormat().format(selectedDebt.remainingAmount)}
-                    </span>
-                  </p>
-                ) : (
-                  <p className="text-xs text-[var(--color-on-surface-variant)]">
-                    Solo se muestran deudas activas con saldo pendiente. Si editas un pago existente, también verás su deuda vinculada.
-                  </p>
-                )}
+                <Select 
+                  label="Cuenta Destino" 
+                  value={destinationAccountId} 
+                  onChange={e => setDestinationAccountId(e.target.value)}
+                  required
+                >
+                  <option value="">Seleccione destino</option>
+                  {accounts.map(acc => (
+                    <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
+                  ))}
+                </Select>
               </div>
             )}
-          </>
-        )}
 
-        <div className="space-y-3 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-on-surface)]">
-                <Paperclip className="h-4 w-4" />
-                Comprobantes
-              </div>
-              <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
-                PDF, Word, Excel o imágenes. Máximo 50 MB por archivo.
-              </p>
-            </div>
-            <label className="inline-flex h-9 cursor-pointer items-center rounded-md border border-[var(--color-outline-variant)] px-3 text-sm font-medium text-[var(--color-on-surface)] hover:bg-[var(--color-surface-container-high)]">
-              Adjuntar
-              <input
-                type="file"
-                multiple
-                accept={ATTACHMENT_ACCEPT}
-                className="sr-only"
-                onChange={(event) => updateSelectedFiles(event.target.files)}
-              />
-            </label>
+            {type !== "transfer" && type !== "manual_adjustment" && (
+              <>
+                {selectedMonthlyPlan ? (
+                  <div className="space-y-2 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
+                    <div className="flex items-start justify-between gap-3 text-xs text-[var(--color-on-surface-variant)]">
+                      <span>
+                        Forecast mensual: <strong className="text-[var(--color-on-surface)]">${formatAccountBalance(selectedMonthlyPlan.forecastAmount)}</strong>
+                      </span>
+                      <span>
+                        Proyectado: <strong className="text-[var(--color-on-surface)]">${formatAccountBalance(projectedCategorySpend)}</strong>
+                      </span>
+                    </div>
+                    <div className="relative h-3 overflow-hidden rounded-full bg-[var(--color-surface-container-high)]">
+                      <div
+                        className={`h-full rounded-full transition-all ${projectedExecutionPercentage > 100 ? "bg-amber-500" : getBudgetTone(projectedExecutionPercentage)}`}
+                        style={{ width: `${Math.min(projectedExecutionPercentage, 100)}%` }}
+                      />
+                      {projectedExecutionPercentage > 100 ? (
+                        <div
+                          className="absolute right-0 top-0 h-full bg-[var(--color-error)]"
+                          style={{ width: `${Math.min(overflowPercentage, 100)}%` }}
+                        />
+                      ) : null}
+                    </div>
+                    <p className={`text-xs font-medium ${projectedExecutionPercentage > 100 ? "text-[var(--color-error)]" : "text-[var(--color-on-surface-variant)]"}`}>
+                      {selectedMonthlyPlan.forecastAmount <= 0
+                        ? "Esta categoría no tiene forecast mensual configurado."
+                        : `${projectedExecutionPercentage.toFixed(0)}% del forecast mensual con este movimiento.`}
+                    </p>
+                  </div>
+                ) : categoryId ? (
+                  <p className="text-xs text-[var(--color-on-surface-variant)]">
+                    Esta categoría todavía no tiene forecast configurado en el planner mensual.
+                  </p>
+                ) : null}
+
+                {isDebtExpense && (
+                  <div className="space-y-2 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
+                    <Select
+                      label="Deuda asociada"
+                      value={debtId}
+                      onChange={(event) => setDebtId(event.target.value)}
+                      required
+                    >
+                      <option value="">Seleccione una deuda</option>
+                      {availableDebts.map((debt) => (
+                        <option key={debt.id} value={debt.id}>
+                          {debt.name} • Pendiente ${new Intl.NumberFormat().format(debt.remainingAmount)}
+                        </option>
+                      ))}
+                    </Select>
+
+                    {selectedDebt ? (
+                      <p className="text-xs text-[var(--color-on-surface-variant)]">
+                        Pendiente actual: <span className="font-medium text-[var(--color-error)]">
+                          ${new Intl.NumberFormat().format(selectedDebt.remainingAmount)}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="text-xs text-[var(--color-on-surface-variant)]">
+                        Solo se muestran deudas activas con saldo pendiente. Si editas un pago existente, también verás su deuda vinculada.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          {selectedFiles.length > 0 ? (
-            <div className="space-y-2">
-              {selectedFiles.map((file, index) => (
-                <div
-                  key={`${file.name}-${file.lastModified}`}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-3 py-2"
-                >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <FileText className="h-4 w-4 shrink-0 text-[var(--color-on-surface-variant)]" />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-[var(--color-on-surface)]">{file.name}</p>
-                      <p className="text-xs text-[var(--color-on-surface-variant)]">{formatFileSize(file.size)}</p>
+          {(supportsMultipleAllocations || type === "transfer" || selectedFiles.length > 0 || !supportsMultipleAllocations) ? (
+            <div className="space-y-4">
+              {supportsMultipleAllocations && (
+                <div className="space-y-3 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-[var(--color-on-surface)]">Distribución por cuentas</h3>
+                      <p className="text-xs text-[var(--color-on-surface-variant)]">
+                        El total asignado debe coincidir con el monto del movimiento.
+                      </p>
                     </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={addAllocation}
+                      aria-label="Agregar cuenta"
+                      className="text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
+                    >
+                      <Plus className="h-5 w-5" />
+                    </Button>
                   </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeSelectedFile(index)}
-                    aria-label="Quitar comprobante"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+
+                  <div className="space-y-3">
+                    {allocationRows.map((row, index) => (
+                      <div key={row.clientId} className="grid gap-2 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] p-3 sm:grid-cols-[1fr_140px_auto]">
+                        <Select
+                          label={`Cuenta ${index + 1}`}
+                          value={row.accountId}
+                          onChange={(event) => updateAllocation(row.clientId, { accountId: event.target.value })}
+                          required
+                        >
+                          <option value="">Seleccione una cuenta</option>
+                          {accounts.map(acc => (
+                            <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
+                          ))}
+                        </Select>
+
+                        <Input
+                          label="Monto"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          value={row.amount}
+                          onChange={(event) => updateAllocation(row.clientId, { amount: event.target.value })}
+                          required
+                        />
+
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeAllocation(row.clientId)}
+                          disabled={allocationRows.length === 1}
+                          aria-label="Quitar cuenta"
+                          className="self-end text-[var(--color-error)]"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap justify-between gap-2 text-xs text-[var(--color-on-surface-variant)]">
+                    <span>Asignado: ${formatAccountBalance(assignedAmount)}</span>
+                    <span className={Math.abs(remainingAmount) < 0.01 ? "text-emerald-500" : "text-[var(--color-error)]"}>
+                      Diferencia: ${formatAccountBalance(remainingAmount)}
+                    </span>
+                  </div>
                 </div>
-              ))}
+              )}
+
+              <div className="space-y-3 rounded-xl border border-[var(--color-outline-variant)] bg-[var(--color-surface)] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-semibold text-[var(--color-on-surface)]">
+                      <Paperclip className="h-4 w-4" />
+                      Comprobantes
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--color-on-surface-variant)]">
+                      PDF, Word, Excel o imágenes. Máximo 50 MB por archivo.
+                    </p>
+                  </div>
+                  <label className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-emerald-50 text-emerald-600 transition-colors hover:bg-emerald-100 hover:text-emerald-700">
+                    <Paperclip className="h-4 w-4" />
+                    <span className="sr-only">Adjuntar comprobantes</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept={ATTACHMENT_ACCEPT}
+                      className="sr-only"
+                      onChange={(event) => updateSelectedFiles(event.target.files)}
+                    />
+                  </label>
+                </div>
+
+                {selectedFiles.length > 0 ? (
+                  <div className="space-y-2">
+                    {selectedFiles.map((file, index) => (
+                      <div
+                        key={`${file.name}-${file.lastModified}`}
+                        className="flex items-center justify-between gap-3 rounded-lg border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] px-3 py-2"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <FileText className="h-4 w-4 shrink-0 text-[var(--color-on-surface-variant)]" />
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium text-[var(--color-on-surface)]">{file.name}</p>
+                            <p className="text-xs text-[var(--color-on-surface-variant)]">{formatFileSize(file.size)}</p>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => removeSelectedFile(index)}
+                          aria-label="Quitar comprobante"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </div>

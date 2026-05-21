@@ -60,7 +60,7 @@ export function Modal({ isOpen, onClose, title, children, className }: ModalProp
   return (
     <div className="fixed inset-0 z-50 flex items-stretch justify-center bg-black/40 p-0 [overscroll-behavior:none] sm:items-center sm:p-4">
       <div 
-        className={cn("h-[100dvh] max-h-[100dvh] w-screen max-w-none overflow-hidden rounded-none border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] shadow-[0_8px_30px_rgba(15,23,42,0.16)] sm:h-auto sm:max-h-[92vh] sm:w-full sm:max-w-md sm:rounded-lg", className)}
+        className={cn("h-[100dvh] max-h-[100dvh] w-screen max-w-none overflow-hidden rounded-none border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] shadow-[0_8px_30px_rgba(15,23,42,0.16)] sm:h-auto sm:max-h-[92vh] sm:w-full sm:max-w-2xl sm:rounded-lg", className)}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
