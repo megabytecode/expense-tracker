@@ -6,6 +6,174 @@ import { CategoryService } from './category.service.js';
 import { SavingsGoalService } from './savings-goal.service.js';
 
 export class TransactionService {
+  private static async calculateLedgerBalanceForAccount(
+    tx: any,
+    userId: string,
+    accountId: string,
+    options?: { excludeTransactionId?: string },
+  ) {
+    const account = await tx.account.findFirst({
+      where: {
+        id: accountId,
+        userId,
+        isActive: true,
+        deletedAt: null,
+      },
+      include: {
+        transactionAllocations: {
+          include: {
+            transaction: {
+              select: {
+                id: true,
+                isDeleted: true,
+              },
+            },
+          },
+        },
+        transfersSent: {
+          where: { isDeleted: false },
+          select: { amount: true },
+        },
+        transfersReceived: {
+          where: { isDeleted: false },
+          select: { amount: true },
+        },
+      },
+    });
+
+    if (!account) {
+      throw new Error('La cuenta seleccionada no existe o no está activa.');
+    }
+
+    const excludedTransactionId = options?.excludeTransactionId;
+
+    const allocationsBalanceCents = account.transactionAllocations.reduce((sum: number, allocation: any) => {
+      if (allocation.transaction.isDeleted || allocation.transaction.id === excludedTransactionId) {
+        return sum;
+      }
+
+      const amountCents = amountToCents(Number(allocation.amount));
+      return sum + (allocation.direction === 'in' ? amountCents : -amountCents);
+    }, 0);
+
+    const incomingTransfersCents = account.transfersReceived.reduce(
+      (sum: number, transfer: any) => sum + amountToCents(Number(transfer.amount)),
+      0,
+    );
+    const outgoingTransfersCents = account.transfersSent.reduce(
+      (sum: number, transfer: any) => sum + amountToCents(Number(transfer.amount)),
+      0,
+    );
+
+    return allocationsBalanceCents + incomingTransfersCents - outgoingTransfersCents;
+  }
+
+  private static async normalizeManualAdjustmentInput(
+    tx: any,
+    userId: string,
+    targetBalance: number,
+    allocations: { accountId: string; amount: number; direction?: 'in' | 'out' }[],
+    options?: { excludeTransactionId?: string },
+  ) {
+    if (allocations.length !== 1) {
+      throw new Error('El ajuste manual debe afectar una sola cuenta.');
+    }
+
+    const accountId = allocations[0]?.accountId;
+    if (!accountId) {
+      throw new Error('La cuenta es obligatoria para el ajuste manual.');
+    }
+    const currentBalanceCents = await this.calculateLedgerBalanceForAccount(tx, userId, accountId, options);
+    const targetBalanceCents = amountToCents(targetBalance);
+    const adjustmentDeltaCents = targetBalanceCents - currentBalanceCents;
+
+    if (adjustmentDeltaCents === 0) {
+      throw new Error('El saldo ingresado ya coincide con el saldo esperado actual de la cuenta.');
+    }
+
+    const absoluteAmount = centsToAmount(Math.abs(adjustmentDeltaCents));
+
+    return {
+      totalAmountCents: Math.abs(adjustmentDeltaCents),
+      allocations: [
+        {
+          accountId,
+          amount: absoluteAmount,
+          direction: adjustmentDeltaCents > 0 ? 'in' : 'out',
+        },
+      ] as { accountId: string; amount: number; direction?: 'in' | 'out' }[],
+    };
+  }
+
+  private static async computeManualAdjustmentTargetAmount(
+    tx: any,
+    transaction: any,
+  ) {
+    if (transaction.type !== 'manual_adjustment' || !transaction.allocations?.length) {
+      return undefined;
+    }
+
+    const allocation = transaction.allocations[0];
+    const accountId = allocation.accountId;
+    const occurredAt = new Date(transaction.occurredAt);
+    const transactionId = transaction.id;
+
+    const [priorAllocations, priorTransfersIn, priorTransfersOut] = await Promise.all([
+      tx.transactionAllocation.findMany({
+        where: {
+          accountId,
+          transaction: {
+            isDeleted: false,
+            OR: [
+              { occurredAt: { lt: occurredAt } },
+              { occurredAt, id: { lt: transactionId } },
+            ],
+          },
+        },
+      }),
+      tx.transfer.findMany({
+        where: {
+          destinationAccountId: accountId,
+          isDeleted: false,
+          occurredAt: { lt: occurredAt },
+        },
+        select: { amount: true },
+      }),
+      tx.transfer.findMany({
+        where: {
+          sourceAccountId: accountId,
+          isDeleted: false,
+          occurredAt: { lt: occurredAt },
+        },
+        select: { amount: true },
+      }),
+    ]);
+
+    const priorBalanceCents =
+      priorAllocations.reduce((sum: number, item: any) => {
+        const amountCents = amountToCents(Number(item.amount));
+        return sum + (item.direction === 'in' ? amountCents : -amountCents);
+      }, 0) +
+      priorTransfersIn.reduce((sum: number, item: any) => sum + amountToCents(Number(item.amount)), 0) -
+      priorTransfersOut.reduce((sum: number, item: any) => sum + amountToCents(Number(item.amount)), 0);
+
+    const adjustmentAmountCents = amountToCents(Number(allocation.amount));
+    const signedDeltaCents = allocation.direction === 'in' ? adjustmentAmountCents : -adjustmentAmountCents;
+
+    return centsToAmount(priorBalanceCents + signedDeltaCents);
+  }
+
+  private static async enrichTransactionWithManualAdjustmentTarget(tx: any, transaction: any) {
+    if (transaction.type !== 'manual_adjustment') {
+      return transaction;
+    }
+
+    return {
+      ...transaction,
+      manualAdjustmentTargetAmount: await this.computeManualAdjustmentTargetAmount(tx, transaction),
+    };
+  }
+
   private static async validateAccounts(
     tx: any,
     userId: string,
@@ -155,11 +323,15 @@ export class TransactionService {
     pagination?: { page: number; pageSize: number },
   ) {
     if (!pagination) {
-      return prisma.transaction.findMany({
+      const transactions = await prisma.transaction.findMany({
         where: { userId, isDeleted: false },
         include: this.transactionInclude,
         orderBy: { occurredAt: 'desc' }
       });
+
+      return Promise.all(
+        transactions.map((transaction) => this.enrichTransactionWithManualAdjustmentTarget(prisma, transaction)),
+      );
     }
 
     const [totalItems, items] = await Promise.all([
@@ -182,7 +354,9 @@ export class TransactionService {
         totalItems,
         totalPages: Math.max(1, Math.ceil(totalItems / pagination.pageSize)),
       },
-      items,
+      items: await Promise.all(
+        items.map((transaction) => this.enrichTransactionWithManualAdjustmentTarget(prisma, transaction)),
+      ),
     };
   }
 
@@ -211,7 +385,7 @@ export class TransactionService {
       }
     });
     if (!tx) throw new Error('Transaction not found');
-    return tx;
+    return this.enrichTransactionWithManualAdjustmentTarget(prisma, tx);
   }
 
   static async createTransaction(
@@ -227,38 +401,52 @@ export class TransactionService {
       allocations: { accountId: string; amount: number; direction?: 'in' | 'out' }[];
     }
   ) {
-    const totalAmountCents = amountToCents(data.totalAmount);
-    if (totalAmountCents <= 0) {
-      throw new Error('El monto total debe ser mayor que cero.');
-    }
-
-    const allocationsSumCents = data.allocations.reduce((sum, alloc) => {
-      const allocationAmountCents = amountToCents(alloc.amount);
-      if (allocationAmountCents <= 0) {
-        throw new Error('Cada asignación debe tener un monto mayor que cero.');
-      }
-
-      if (alloc.direction && alloc.direction !== 'in' && alloc.direction !== 'out') {
-        throw new Error('La dirección de una asignación no es válida.');
-      }
-
-      if (data.type === 'income' && alloc.direction && alloc.direction !== 'in') {
-        throw new Error('Las asignaciones de ingreso deben entrar a la cuenta.');
-      }
-
-      if (data.type === 'expense' && alloc.direction && alloc.direction !== 'out') {
-        throw new Error('Las asignaciones de gasto deben salir de la cuenta.');
-      }
-
-      return sum + allocationAmountCents;
-    }, 0);
-    if (allocationsSumCents !== totalAmountCents) {
-      throw new Error('La suma de las asignaciones no coincide con el total.');
-    }
-
     return await prisma.$transaction(async (tx) => {
+      let totalAmountCents = amountToCents(data.totalAmount);
+      let allocations = data.allocations;
+
       const category = await this.getTransactionCategory(tx, userId, data.type, data.categoryId);
       await this.validateAccounts(tx, userId, data.allocations);
+
+      if (data.type === 'manual_adjustment') {
+        const normalizedManualAdjustment = await this.normalizeManualAdjustmentInput(
+          tx,
+          userId,
+          data.totalAmount,
+          data.allocations,
+        );
+        totalAmountCents = normalizedManualAdjustment.totalAmountCents;
+        allocations = normalizedManualAdjustment.allocations;
+      } else {
+        if (totalAmountCents <= 0) {
+          throw new Error('El monto total debe ser mayor que cero.');
+        }
+
+        const allocationsSumCents = allocations.reduce((sum, alloc) => {
+          const allocationAmountCents = amountToCents(alloc.amount);
+          if (allocationAmountCents <= 0) {
+            throw new Error('Cada asignación debe tener un monto mayor que cero.');
+          }
+
+          if (alloc.direction && alloc.direction !== 'in' && alloc.direction !== 'out') {
+            throw new Error('La dirección de una asignación no es válida.');
+          }
+
+          if (data.type === 'income' && alloc.direction && alloc.direction !== 'in') {
+            throw new Error('Las asignaciones de ingreso deben entrar a la cuenta.');
+          }
+
+          if (data.type === 'expense' && alloc.direction && alloc.direction !== 'out') {
+            throw new Error('Las asignaciones de gasto deben salir de la cuenta.');
+          }
+
+          return sum + allocationAmountCents;
+        }, 0);
+
+        if (allocationsSumCents !== totalAmountCents) {
+          throw new Error('La suma de las asignaciones no coincide con el total.');
+        }
+      }
 
       const isDebtExpense = data.type === 'expense' && category.systemKey === 'DEBT';
       let debtId: string | null = null;
@@ -292,7 +480,7 @@ export class TransactionService {
         }
       });
 
-      for (const alloc of data.allocations) {
+      for (const alloc of allocations) {
         let direction = alloc.direction;
         if (!direction) {
           direction = data.type === 'income' ? 'in' : 'out';
@@ -344,7 +532,7 @@ export class TransactionService {
     userId: string, 
     id: string, 
     data: {
-      categoryId: string;
+      categoryId?: string;
       description: string;
       notes?: string;
       totalAmount: number;
@@ -363,39 +551,54 @@ export class TransactionService {
     });
     
     if (!existing) throw new Error('Movimiento no encontrado');
-    
-    const totalAmountCents = amountToCents(data.totalAmount);
-    if (totalAmountCents <= 0) {
-      throw new Error('El monto total debe ser mayor que cero.');
-    }
-
-    const allocationsSumCents = data.allocations.reduce((sum, alloc) => {
-      const allocationAmountCents = amountToCents(alloc.amount);
-      if (allocationAmountCents <= 0) {
-        throw new Error('Cada asignación debe tener un monto mayor que cero.');
-      }
-
-      if (alloc.direction && alloc.direction !== 'in' && alloc.direction !== 'out') {
-        throw new Error('La dirección de una asignación no es válida.');
-      }
-
-      if (existing.type === 'income' && alloc.direction && alloc.direction !== 'in') {
-        throw new Error('Las asignaciones de ingreso deben entrar a la cuenta.');
-      }
-
-      if (existing.type === 'expense' && alloc.direction && alloc.direction !== 'out') {
-        throw new Error('Las asignaciones de gasto deben salir de la cuenta.');
-      }
-
-      return sum + allocationAmountCents;
-    }, 0);
-    if (allocationsSumCents !== totalAmountCents) {
-      throw new Error('La suma de las asignaciones no coincide con el total.');
-    }
 
     return await prisma.$transaction(async (tx) => {
+      let totalAmountCents = amountToCents(data.totalAmount);
+      let allocations = data.allocations;
+
       const category = await this.getTransactionCategory(tx, userId, existing.type as 'income' | 'expense' | 'manual_adjustment', data.categoryId);
       await this.validateAccounts(tx, userId, data.allocations);
+
+      if (existing.type === 'manual_adjustment') {
+        const normalizedManualAdjustment = await this.normalizeManualAdjustmentInput(
+          tx,
+          userId,
+          data.totalAmount,
+          data.allocations,
+          { excludeTransactionId: id },
+        );
+        totalAmountCents = normalizedManualAdjustment.totalAmountCents;
+        allocations = normalizedManualAdjustment.allocations;
+      } else {
+        if (totalAmountCents <= 0) {
+          throw new Error('El monto total debe ser mayor que cero.');
+        }
+
+        const allocationsSumCents = allocations.reduce((sum, alloc) => {
+          const allocationAmountCents = amountToCents(alloc.amount);
+          if (allocationAmountCents <= 0) {
+            throw new Error('Cada asignación debe tener un monto mayor que cero.');
+          }
+
+          if (alloc.direction && alloc.direction !== 'in' && alloc.direction !== 'out') {
+            throw new Error('La dirección de una asignación no es válida.');
+          }
+
+          if (existing.type === 'income' && alloc.direction && alloc.direction !== 'in') {
+            throw new Error('Las asignaciones de ingreso deben entrar a la cuenta.');
+          }
+
+          if (existing.type === 'expense' && alloc.direction && alloc.direction !== 'out') {
+            throw new Error('Las asignaciones de gasto deben salir de la cuenta.');
+          }
+
+          return sum + allocationAmountCents;
+        }, 0);
+
+        if (allocationsSumCents !== totalAmountCents) {
+          throw new Error('La suma de las asignaciones no coincide con el total.');
+        }
+      }
 
       const existingDebtPayment = existing.debtPayments[0] || null;
       const isDebtExpense = existing.type === 'expense' && category.systemKey === 'DEBT';
@@ -438,7 +641,7 @@ export class TransactionService {
       });
 
       // 3. Create new allocations
-      for (const alloc of data.allocations) {
+      for (const alloc of allocations) {
         let direction = alloc.direction;
         if (!direction) {
           direction = existing.type === 'income' ? 'in' : 'out';

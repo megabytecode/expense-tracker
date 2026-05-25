@@ -5,8 +5,8 @@ import type { AuthenticatedRequest } from '../middlewares/auth.middleware.js';
 import { TransactionService } from '../services/transaction.service.js';
 import {
   parseArray,
+  parseFiniteNumber,
   parseOptionalString,
-  parsePositiveAmount,
   parseRequiredDate,
   parseRequiredString,
 } from '../lib/request-validation.js';
@@ -36,7 +36,7 @@ function parseAllocations(value: unknown) {
 
     return {
       accountId: parseRequiredString(allocation?.accountId, 'La cuenta'),
-      amount: parsePositiveAmount(allocation?.amount, 'El monto de la asignación'),
+      amount: parseFiniteNumber(allocation?.amount, 'El monto de la asignación'),
       ...(direction ? { direction } : {}),
     };
   });
@@ -87,7 +87,7 @@ transactionRouter.post('/', requireAuth, async (req: AuthenticatedRequest, res: 
       type,
       categoryId,
       description: parseRequiredString(description, 'La descripción'),
-      totalAmount: parsePositiveAmount(totalAmount, 'El monto total'),
+      totalAmount: parseFiniteNumber(totalAmount, 'El monto total'),
       occurredAt: parseRequiredDate(occurredAt, 'La fecha'),
       allocations: parseAllocations(allocations),
       ...(parsedNotes !== undefined ? { notes: parsedNotes } : {}),
@@ -108,12 +108,14 @@ transactionRouter.patch('/:id', requireAuth, async (req: AuthenticatedRequest, r
 
     const parsedNotes = parseOptionalString(notes);
     const parsedDebtId = debtId === undefined || debtId === null ? undefined : parseRequiredString(debtId, 'La deuda');
+    const parsedCategoryId =
+      categoryId === undefined || categoryId === null ? undefined : parseRequiredString(categoryId, 'La categoría');
     const tx = await TransactionService.updateTransaction(userId, id, {
-      categoryId: parseRequiredString(categoryId, 'La categoría'),
       description: parseRequiredString(description, 'La descripción'),
-      totalAmount: parsePositiveAmount(totalAmount, 'El monto total'),
+      totalAmount: parseFiniteNumber(totalAmount, 'El monto total'),
       occurredAt: parseRequiredDate(occurredAt, 'La fecha'),
       allocations: parseAllocations(allocations),
+      ...(parsedCategoryId !== undefined ? { categoryId: parsedCategoryId } : {}),
       ...(parsedNotes !== undefined ? { notes: parsedNotes } : {}),
       ...(parsedDebtId !== undefined ? { debtId: parsedDebtId } : {}),
     });

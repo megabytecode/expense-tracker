@@ -40,6 +40,7 @@ interface TransactionRecord {
   categoryId: string;
   description: string;
   totalAmount: number;
+  manualAdjustmentTargetAmount?: number;
   occurredAt: string;
   allocations: { accountId: string; amount: number }[];
   debtPayments?: { debt?: { id: string } | null }[];
@@ -216,7 +217,7 @@ export function TransactionModal({
       setCategoryId(initialTransaction.categoryId || "");
       setDebtId(initialTransaction.debtPayments?.[0]?.debt?.id || "");
       setDescription(initialTransaction.description || "");
-      setAmount(String(initialTransaction.totalAmount));
+      setAmount(String(initialTransaction.manualAdjustmentTargetAmount ?? initialTransaction.totalAmount));
       setAccountId(initialTransaction.allocations?.[0]?.accountId || "");
       setAllocationRows(
         initialTransaction.allocations?.length
@@ -273,6 +274,7 @@ export function TransactionModal({
   const debtCategory = categories.find((category) => category.systemKey === "DEBT");
   const isDebtExpense = type === "expense" && categoryId === debtCategory?.id;
   const selectedDebt = debts.find((debt) => debt.id === debtId);
+  const selectedAccount = accounts.find((account) => account.id === accountId);
   const selectedMonthlyPlan = type === "expense"
     ? monthlyPlanItems.find((item) => item.categoryId === categoryId)
     : null;
@@ -379,7 +381,7 @@ export function TransactionModal({
           : [{
               accountId,
               amount: Number(amount),
-              direction: type === 'manual_adjustment' ? (Number(amount) >= 0 ? 'in' : 'out') : undefined,
+              direction: undefined,
             }];
 
         const transaction = await fetchApi(endpoint, {
@@ -421,10 +423,10 @@ export function TransactionModal({
       subtitle={isEditing ? undefined : "Registra un gasto, ingreso, transferencia o ajuste"}
       className="sm:max-w-[min(96vw,76rem)] sm:max-h-[90vh] sm:rounded-3xl"
       headerClassName="sticky top-0 z-20 px-4 py-4 sm:px-6 sm:py-5 backdrop-blur"
-      bodyClassName="p-0 sm:max-h-[calc(90vh-88px)]"
+      bodyClassName="flex h-[calc(100dvh-65px)] overflow-hidden p-0 sm:h-auto sm:max-h-[calc(90vh-88px)]"
     >
-      <form onSubmit={handleSubmit} className="flex h-full max-h-[100dvh] flex-col">
-        <div className="flex-1 overflow-y-auto px-4 pb-5 pt-4 [overscroll-behavior:contain] sm:px-6 sm:pb-6 sm:pt-5">
+      <form onSubmit={handleSubmit} className="flex h-full min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 pt-4 [overscroll-behavior:contain] sm:px-6 sm:pb-6 sm:pt-5">
           {error && (
             <div className="mb-4 rounded-2xl border border-[var(--color-error)]/30 bg-[var(--color-error)]/12 px-4 py-3 text-sm text-[var(--color-error-container)]">
               {error}
@@ -532,18 +534,34 @@ export function TransactionModal({
               </div>
 
               {type !== "transfer" && !supportsMultipleAllocations && (
-                <Select
-                  label="Cuenta"
-                  value={accountId}
-                  onChange={e => setAccountId(e.target.value)}
-                  required
-                  className={inputClassName}
-                >
-                  <option value="">Seleccione una cuenta</option>
-                  {accounts.map(acc => (
-                    <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
-                  ))}
-                </Select>
+                <div className="space-y-3">
+                  <Select
+                    label="Cuenta"
+                    value={accountId}
+                    onChange={e => setAccountId(e.target.value)}
+                    required
+                    className={inputClassName}
+                  >
+                    <option value="">Seleccione una cuenta</option>
+                    {accounts.map(acc => (
+                      <option key={acc.id} value={acc.id}>{getAccountOptionLabel(acc)}</option>
+                    ))}
+                  </Select>
+
+                  {type === "manual_adjustment" ? (
+                    <div className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-low)] px-4 py-3 text-sm text-[var(--color-on-surface-variant)]">
+                      <p className="font-medium text-[var(--color-on-surface)]">Saldo real final</p>
+                      <p className="mt-1">
+                        Escribe el valor real que hay actualmente en la cuenta. El sistema calculará automáticamente cuánto debe ajustar para dejar el saldo esperado en ese monto.
+                      </p>
+                      {selectedAccount ? (
+                        <p className="mt-2 text-xs">
+                          Saldo esperado actual: <span className="font-semibold text-[var(--color-on-surface)]">${formatAccountBalance(selectedAccount.expectedBalance)}</span>
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               )}
 
               {type === "transfer" && (

@@ -28,6 +28,7 @@ interface TransactionItem {
   categoryId: string;
   description: string;
   totalAmount: number;
+  manualAdjustmentTargetAmount?: number;
   occurredAt: string;
   category?: {
     id: string;
@@ -120,6 +121,10 @@ function getItemAttachments(item: HistoryItem) {
 function serializeTransactionForModal(transaction: TransactionItem) {
   return {
     ...transaction,
+    totalAmount:
+      transaction.type === "manual_adjustment"
+        ? transaction.manualAdjustmentTargetAmount ?? transaction.totalAmount
+        : transaction.totalAmount,
     allocations: transaction.allocations.map((allocation) => ({
       accountId: allocation.accountId ?? allocation.account?.id ?? "",
       amount: allocation.amount,
@@ -228,6 +233,22 @@ export function MovementHistoryPage() {
       setActionError(getErrorMessage(detailError));
     } finally {
       setLoadingDetailId("");
+    }
+  }
+
+  async function openTransactionEditor(item: HistoryItem) {
+    setActionError("");
+
+    if (isTransferItem(item)) {
+      setEditingTransfer(item.source as TransferItem);
+      return;
+    }
+
+    try {
+      const data = await fetchApi<TransactionItem>(`/transactions/${item.id}`);
+      setEditingTransaction(data);
+    } catch (editorError) {
+      setActionError(getErrorMessage(editorError));
     }
   }
 
@@ -384,14 +405,7 @@ export function MovementHistoryPage() {
                           type="button"
                           variant="ghost"
                           size="icon"
-                          onClick={() => {
-                            setActionError("");
-                            if (isTransferItem(item)) {
-                              setEditingTransfer(item.source as TransferItem);
-                            } else {
-                              setEditingTransaction(item.source as TransactionItem);
-                            }
-                          }}
+                          onClick={() => void openTransactionEditor(item)}
                           aria-label="Editar"
                         >
                           <Pencil className="h-4 w-4" />
