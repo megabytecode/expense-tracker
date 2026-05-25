@@ -423,10 +423,10 @@ export function TransactionModal({
       subtitle={isEditing ? undefined : "Registra un gasto, ingreso, transferencia o ajuste"}
       className="sm:max-w-[min(96vw,76rem)] sm:max-h-[90vh] sm:rounded-3xl"
       headerClassName="sticky top-0 z-20 px-4 py-4 sm:px-6 sm:py-5 backdrop-blur"
-      bodyClassName="flex h-[calc(100dvh-65px)] overflow-hidden p-0 sm:h-auto sm:max-h-[calc(90vh-88px)]"
+      bodyClassName="h-[calc(100dvh-65px)] overflow-hidden p-0 sm:h-[calc(90vh-88px)] sm:max-h-[calc(90vh-88px)]"
     >
-      <form onSubmit={handleSubmit} className="flex h-full min-h-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-5 pt-4 [overscroll-behavior:contain] sm:px-6 sm:pb-6 sm:pt-5">
+      <form onSubmit={handleSubmit} className="flex h-full min-h-0 min-w-0 flex-col">
+        <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-5 pt-4 [overscroll-behavior:contain] sm:px-6 sm:pb-6 sm:pt-5">
           {error && (
             <div className="mb-4 rounded-2xl border border-[var(--color-error)]/30 bg-[var(--color-error)]/12 px-4 py-3 text-sm text-[var(--color-error-container)]">
               {error}
@@ -469,9 +469,9 @@ export function TransactionModal({
             </div>
           </section>
 
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(22rem,0.95fr)] lg:items-start">
-            <div className={primaryColumnClassName}>
-              <section className="space-y-4 rounded-[22px] border border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] p-4 sm:p-5">
+          <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-start">
+            <div className={`min-w-0 ${primaryColumnClassName}`}>
+              <section className="min-w-0 space-y-4 rounded-[22px] border border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] p-4 sm:p-5">
               <div className="space-y-1">
                 <h3 className="text-base font-semibold text-[var(--color-on-surface)]">Datos principales</h3>
                 <p className="text-sm text-[var(--color-on-surface-variant)]">
@@ -479,7 +479,7 @@ export function TransactionModal({
                 </p>
               </div>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid min-w-0 gap-4 md:grid-cols-2">
                 <div className={type === "transfer" ? "md:col-span-2" : undefined}>
                   <Input
                     label={type === "transfer" ? "Motivo" : "Descripción"}
@@ -534,7 +534,7 @@ export function TransactionModal({
               </div>
 
               {type !== "transfer" && !supportsMultipleAllocations && (
-                <div className="space-y-3">
+                <div className="min-w-0 space-y-3">
                   <Select
                     label="Cuenta"
                     value={accountId}
@@ -565,7 +565,7 @@ export function TransactionModal({
               )}
 
               {type === "transfer" && (
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid min-w-0 gap-4 md:grid-cols-2">
                   <Select
                     label="Cuenta origen"
                     value={accountId}
@@ -665,9 +665,9 @@ export function TransactionModal({
             </div>
 
             {(supportsMultipleAllocations || type === "transfer" || selectedFiles.length > 0 || !supportsMultipleAllocations) ? (
-              <div className="space-y-4">
+              <div className="min-w-0 space-y-4">
                 {supportsMultipleAllocations && (
-                  <section className="space-y-4 rounded-[22px] border border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] p-4 sm:p-5">
+                  <section className="min-w-0 space-y-4 rounded-[22px] border border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] p-4 sm:p-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h3 className="text-base font-semibold text-[var(--color-on-surface)]">Distribución por cuentas</h3>
@@ -688,9 +688,9 @@ export function TransactionModal({
                     </Button>
                   </div>
 
-                  <div className="space-y-3">
+                  <div className="min-w-0 space-y-3">
                     {allocationRows.map((row, index) => (
-                      <div key={row.clientId} className="rounded-2xl bg-[var(--color-surface-container-low)] p-3 sm:p-4">
+                      <div key={row.clientId} className="min-w-0 rounded-2xl bg-[var(--color-surface-container-low)] p-3 sm:p-4">
                         <div className="mb-3 flex items-center justify-between gap-3 sm:hidden">
                           <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
                             Cuenta {index + 1}
@@ -708,7 +708,7 @@ export function TransactionModal({
                           </Button>
                         </div>
 
-                        <div className="grid gap-3 sm:grid-cols-[minmax(0,1.65fr)_minmax(0,0.95fr)_auto] sm:items-end">
+                        <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1.65fr)_minmax(0,0.95fr)_auto] sm:items-end">
                           <Select
                             label={`Cuenta ${index + 1}`}
                             value={row.accountId}
@@ -771,8 +771,8 @@ export function TransactionModal({
                   </section>
                 )}
 
-                <section className="space-y-4 rounded-[22px] border border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] p-4 sm:p-5">
-                <div className="space-y-4 rounded-2xl bg-[var(--color-surface-container-low)] p-4">
+                <section className="min-w-0 space-y-4 rounded-[22px] border border-[var(--color-outline-variant)] bg-[color-mix(in_srgb,var(--color-surface)_94%,transparent)] p-4 sm:p-5">
+                <div className="min-w-0 space-y-4 rounded-2xl bg-[var(--color-surface-container-low)] p-4">
                   <div className="flex items-start gap-3">
                     <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[var(--color-surface-container-high)] text-[var(--color-on-surface)]">
                       <Paperclip className="h-4 w-4" />
