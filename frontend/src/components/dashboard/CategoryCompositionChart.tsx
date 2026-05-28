@@ -44,9 +44,15 @@ function getSliceColor(item: CategoryCompositionItem, index: number) {
 export function CategoryCompositionChart({
   items,
   currencyCode,
+  summaryLabel = "Total consolidado",
+  emptyTitle = "Todavía no hay distribución para graficar",
+  emptyDescription = "Cuando tus categorías tengan montos acumulados, aquí verás su peso relativo.",
 }: {
   items: CategoryCompositionItem[];
   currencyCode: string;
+  summaryLabel?: string;
+  emptyTitle?: string;
+  emptyDescription?: string;
 }) {
   const visibleItems = items.filter((item) => item.value > 0);
   const totalValue = visibleItems.reduce((sum, item) => sum + item.value, 0);
@@ -55,8 +61,8 @@ export function CategoryCompositionChart({
     return (
       <EmptyState
         icon={<ChartPie className="h-8 w-8 text-[var(--color-on-surface-variant)]" />}
-        title="Todavía no hay distribución para graficar"
-        description="Cuando tus categorías tengan montos acumulados, aquí verás su peso relativo."
+        title={emptyTitle}
+        description={emptyDescription}
         className="py-10"
       />
     );
@@ -155,7 +161,7 @@ export function CategoryCompositionChart({
         <div className="mb-3 flex items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-on-surface-variant)]">
-              Total consolidado
+              {summaryLabel}
             </p>
             <p className="mt-1 text-2xl font-semibold text-[var(--color-on-surface)]">
               {formatCurrency(totalValue, currencyCode)}

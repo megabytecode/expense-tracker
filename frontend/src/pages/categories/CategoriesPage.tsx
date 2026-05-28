@@ -71,6 +71,7 @@ function getErrorMessage(error: unknown) {
 }
 
 export function CategoriesPage() {
+  const [chartMode, setChartMode] = useState<"budget" | "spent">("budget");
   const [categories, setCategories] = useState<Category[]>([]);
   const [monthlyPlanItems, setMonthlyPlanItems] = useState<MonthlyPlanItem[]>([]);
   const [incomeBreakdown, setIncomeBreakdown] = useState<OverviewResponse["incomeBreakdown"]>([]);
@@ -196,20 +197,13 @@ export function CategoriesPage() {
     })));
   const expenseTotal = sumExpenseCategories(expenseCategories);
   const incomeTotal = sumIncomeCategories(incomeCategories);
-  const compositionItems = [
-    ...expenseCategories.map((category) => ({
-      id: category.id,
-      name: category.name,
-      value: category.actualAmount ?? 0,
-      tone: "expense" as const,
-    })),
-    ...incomeCategories.map((category) => ({
-      id: category.id,
-      name: category.name,
-      value: category.totalAmount ?? 0,
-      tone: "income" as const,
-    })),
-  ];
+  const compositionItems = expenseCategories.map((category) => ({
+    id: category.id,
+    name: category.name,
+    value: chartMode === "budget" ? category.monthlyBudgetAmount ?? 0 : category.actualAmount ?? 0,
+    tone: "expense" as const,
+  }));
+  const chartTotal = compositionItems.reduce((sum, item) => sum + item.value, 0);
 
   const renderActions = (cat: CategoryBudgetRow | IncomeCategoryRow) => (
     <div className="flex justify-end gap-1">
@@ -256,69 +250,103 @@ export function CategoriesPage() {
           action={<Button onClick={() => void loadCategories()}>Reintentar</Button>}
         />
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(21rem,0.82fr)_minmax(0,1fr)] xl:items-start">
-          <section className="rounded-[24px] border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
-            <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-[var(--color-on-surface)]">Categorías de gasto</h2>
-                  <p className="mt-1 text-sm font-medium text-[var(--color-on-surface)]">
-                    Total gastado: {formatCurrency(expenseTotal, currencyCode)}
-                  </p>
+        <div className="space-y-6">
+          <div className="grid gap-6 xl:grid-cols-2 xl:items-start">
+            <section className="rounded-[24px] border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
+              <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--color-on-surface)]">Categorías de gasto</h2>
+                    <p className="mt-1 text-sm font-medium text-[var(--color-on-surface)]">
+                      Total gastado: {formatCurrency(expenseTotal, currencyCode)}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-[var(--color-surface-container-low)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
+                    {expenseCategories.length} categorías
+                  </span>
                 </div>
-                <span className="rounded-full bg-[var(--color-surface-container-low)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
-                  {expenseCategories.length} categorías
-                </span>
+                <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                  Ordenadas desde la categoría con mayor gasto acumulado hasta la que menos ha usado.
+                </p>
               </div>
-              <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                Ordenadas desde la categoría con mayor gasto acumulado hasta la que menos ha usado.
-              </p>
-            </div>
-            <ExpenseCategoryTable
-              categories={expenseCategories}
-              currencyCode={currencyCode}
-              actions={renderActions}
-              emptyAction={<Button onClick={() => openModal()}>Crear gasto</Button>}
-            />
-          </section>
+              <ExpenseCategoryTable
+                categories={expenseCategories}
+                currencyCode={currencyCode}
+                actions={renderActions}
+                emptyAction={<Button onClick={() => openModal()}>Crear gasto</Button>}
+              />
+            </section>
+
+            <section className="rounded-[24px] border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
+              <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-semibold text-[var(--color-on-surface)]">Categorías de ingreso</h2>
+                    <p className="mt-1 text-sm font-medium text-emerald-500">
+                      Total ingresado: {formatCurrency(incomeTotal, currencyCode)}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-[var(--color-surface-container-low)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
+                    {incomeCategories.length} categorías
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
+                  Ordenadas desde la categoría con mayor ingreso acumulado hasta la que menos movimiento tiene.
+                </p>
+              </div>
+              <IncomeCategoryTable
+                categories={incomeCategories}
+                currencyCode={currencyCode}
+                actions={renderActions}
+                emptyAction={<Button onClick={() => openModal()}>Crear ingreso</Button>}
+              />
+            </section>
+          </div>
 
           <section className="rounded-[28px] border border-[var(--color-outline-variant)] bg-[linear-gradient(180deg,color-mix(in_srgb,var(--color-surface)_95%,transparent)_0%,color-mix(in_srgb,var(--color-surface-container-low)_92%,transparent)_100%)] p-4 shadow-[0_24px_60px_rgba(15,23,42,0.12)] sm:p-5">
-            <div className="mb-4 text-center">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-on-surface-variant)]">
-                Distribución visual
-              </p>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-on-surface)]">
-                Peso de cada categoría
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-[var(--color-on-surface-variant)]">
-                La torta combina gasto acumulado e ingreso acumulado para mostrar qué categorías están moviendo más valor.
-              </p>
-            </div>
-            <CategoryCompositionChart items={compositionItems} currencyCode={currencyCode} />
-          </section>
-
-          <section className="rounded-[24px] border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)] shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
-            <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-[var(--color-on-surface)]">Categorías de ingreso</h2>
-                  <p className="mt-1 text-sm font-medium text-emerald-500">
-                    Total ingresado: {formatCurrency(incomeTotal, currencyCode)}
-                  </p>
-                </div>
-                <span className="rounded-full bg-[var(--color-surface-container-low)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
-                  {incomeCategories.length} categorías
-                </span>
+            <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--color-on-surface-variant)]">
+                  Presupuesto por categoría
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--color-on-surface)]">
+                  Vista comparativa del plan
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--color-on-surface-variant)]">
+                  Alterna entre lo presupuestado y lo ya gastado para ver qué categorías concentran más peso en este mes.
+                </p>
               </div>
-              <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                Ordenadas desde la categoría con mayor ingreso acumulado hasta la que menos movimiento tiene.
+              <div className="w-full max-w-xs">
+                <Select
+                  label="Visualizar"
+                  value={chartMode}
+                  onChange={(event) => setChartMode(event.target.value as "budget" | "spent")}
+                >
+                  <option value="budget">Presupuesto</option>
+                  <option value="spent">Ya gastado</option>
+                </Select>
+              </div>
+            </div>
+
+            <div className="mb-4 rounded-2xl bg-[var(--color-surface-container-low)] px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
+                {chartMode === "budget" ? "Total presupuestado" : "Total gastado"}
+              </p>
+              <p className="mt-1 text-xl font-semibold text-[var(--color-on-surface)]">
+                {formatCurrency(chartTotal, currencyCode)}
               </p>
             </div>
-            <IncomeCategoryTable
-              categories={incomeCategories}
+
+            <CategoryCompositionChart
+              items={compositionItems}
               currencyCode={currencyCode}
-              actions={renderActions}
-              emptyAction={<Button onClick={() => openModal()}>Crear ingreso</Button>}
+              summaryLabel={chartMode === "budget" ? "Total presupuestado" : "Total gastado"}
+              emptyTitle={chartMode === "budget" ? "Todavía no hay presupuesto para graficar" : "Todavía no hay gasto para graficar"}
+              emptyDescription={
+                chartMode === "budget"
+                  ? "Cuando tus categorías de gasto tengan un presupuesto mensual, aquí verás su peso relativo."
+                  : "Cuando tus categorías registren gasto acumulado, aquí verás cuáles están moviendo más dinero."
+              }
             />
           </section>
         </div>
