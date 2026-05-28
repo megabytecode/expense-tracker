@@ -32,6 +32,12 @@ import {
   type CategoryBudgetRow,
   type IncomeCategoryRow,
 } from "../components/dashboard/CategoryBudgetTables";
+import {
+  sortExpenseCategories,
+  sortIncomeCategories,
+  sumExpenseCategories,
+  sumIncomeCategories,
+} from "../components/dashboard/categoryTableUtils";
 
 type DashboardRange = {
   startDate: string;
@@ -324,18 +330,20 @@ export function DashboardPage() {
     setIsTransactionModalOpen(true);
   }
 
-  const expenseRows = (overview?.monthlyPlan.items ?? []).map((item) => ({
+  const expenseRows = sortExpenseCategories((overview?.monthlyPlan.items ?? []).map((item) => ({
     id: item.categoryId,
     name: item.categoryName,
     monthlyBudgetAmount: item.amount,
     actualAmount: item.actualAmount,
-  }));
+  })));
 
-  const incomeRows = (overview?.incomeBreakdown ?? []).map((item) => ({
+  const incomeRows = sortIncomeCategories((overview?.incomeBreakdown ?? []).map((item) => ({
     id: item.categoryId,
     name: item.categoryName,
     totalAmount: item.totalAmount,
-  }));
+  })));
+  const expenseTotal = sumExpenseCategories(expenseRows);
+  const incomeTotal = sumIncomeCategories(incomeRows);
 
   const summaryCards = overview
     ? [
@@ -463,9 +471,19 @@ export function DashboardPage() {
           <div className="grid gap-6 xl:grid-cols-2">
             <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
               <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
-                <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Gastos por categoría</h3>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Gastos por categoría</h3>
+                    <p className="mt-1 text-sm font-medium text-[var(--color-on-surface)]">
+                      Total gastado: {formatCurrency(expenseTotal, overview.currencyCode)}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-[var(--color-surface-container-low)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
+                    {expenseRows.length} categorías
+                  </span>
+                </div>
                 <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                  El límite mensual es fijo; el gasto real usa el rango global.
+                  El límite mensual es fijo y la lista se ordena por mayor gasto acumulado en el rango global.
                 </p>
               </div>
               <ExpenseCategoryTable
@@ -477,9 +495,19 @@ export function DashboardPage() {
 
             <section className="rounded-2xl border border-[var(--color-outline-variant)] bg-[var(--color-surface-container-lowest)]">
               <div className="border-b border-[var(--color-outline-variant)] px-4 py-4">
-                <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Ingresos por categoría</h3>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-[var(--color-on-surface)]">Ingresos por categoría</h3>
+                    <p className="mt-1 text-sm font-medium text-emerald-500">
+                      Total ingresado: {formatCurrency(incomeTotal, overview.currencyCode)}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-[var(--color-surface-container-low)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.08em] text-[var(--color-on-surface-variant)]">
+                    {incomeRows.length} categorías
+                  </span>
+                </div>
                 <p className="mt-1 text-sm text-[var(--color-on-surface-variant)]">
-                  Selecciona una categoría para ver su detalle paginado.
+                  Selecciona una categoría para ver su detalle paginado. La lista se ordena por mayor ingreso acumulado.
                 </p>
               </div>
               <IncomeCategoryTable
